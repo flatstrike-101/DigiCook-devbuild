@@ -34,7 +34,6 @@ export default function Register() {
             <Input
               id="name"
               type="text"
-              //placeholder="John Doe"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               data-testid="input-name"
@@ -46,7 +45,6 @@ export default function Register() {
             <Input
               id="email"
               type="email"
-              //placeholder="you@example.com"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               data-testid="input-email"
@@ -58,7 +56,6 @@ export default function Register() {
             <Input
               id="password"
               type="password"
-              placeholder=""
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               data-testid="input-password"
@@ -70,30 +67,24 @@ export default function Register() {
             <Input
               id="confirmPassword"
               type="password"
-              //placeholder="••••••••"
               value={formData.confirmPassword}
-              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, confirmPassword: e.target.value })
+              }
               data-testid="input-confirm-password"
             />
           </div>
 
-          <Button type="submit" className="w-full" data-testid="button-register">
+          <Button
+            type="submit"
+            data-testid="button-register"
+            className="w-full bg-blue-950 text-white border border-blue-950 
+                       hover:bg-blue-900 hover:border-blue-900 
+                       focus:outline-none focus:ring-2 focus:ring-blue-900 focus:ring-offset-0"
+          >
             Create Account
           </Button>
         </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <button
-              onClick={() => setLocation("/login")}
-              className="text-primary hover:underline"
-              data-testid="link-login"
-            >
-              Sign in
-            </button>
-          </p>
-        </div>
       </Card>
     </div>
   );

@@ -11,9 +11,6 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           <Link href="/" data-testid="link-home">
-            <div className="hover-elevate active-elevate-2 px-3 py-2 rounded-md cursor-pointer">
-              <span className="font-serif text-xl font-bold">DigiCook</span>
-            </div>
           </Link>
 
           <nav className="hidden md:flex items-center gap-2">
@@ -32,11 +29,24 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-2">
-            
-            
+            {/* Sign In Button */}
             <Link href="/login" data-testid="link-login">
-              <Button variant="ghost" size="icon">
-                <User className="h-5 w-5" />
+              <Button
+                variant="ghost"
+                className="flex items-center gap-2 px-4 py-2 text-lg"
+              >
+                <User className="h-6 w-6" />
+                <span>Sign In</span>
+              </Button>
+            </Link>
+
+            {/* Sign Up Button */}
+            <Link href="/register" data-testid="link-register">
+              <Button
+                variant="ghost"
+                className="flex items-center gap-2 px-4 py-2 text-lg"
+              >
+                <span>Sign Up</span>
               </Button>
             </Link>
           </div>

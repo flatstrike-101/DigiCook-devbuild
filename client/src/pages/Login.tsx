@@ -9,9 +9,8 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const [formData, setFormData] = useState({ email: "", password: "" });
 
-  // ← Add this
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); // prevent page reload
+    e.preventDefault();
     console.log("Login attempted with:", formData);
     alert("Login functionality will be implemented when backend is ready!");
   };
@@ -21,7 +20,6 @@ export default function Login() {
       <Card className="w-full max-w-md p-8">
         <div className="text-center mb-8">
           <h1 className="font-serif text-3xl font-bold mb-2">Sign In</h1>
-          <p className="text-muted-foreground">Sign in to access your recipes</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -51,23 +49,16 @@ export default function Login() {
             />
           </div>
 
-          <Button type="submit" className="w-full" data-testid="button-login">
+          <Button
+            type="submit"
+            data-testid="button-login"
+            className="w-full bg-blue-950 text-white border border-blue-950 
+                       hover:bg-blue-900 hover:border-blue-900 
+                       focus:outline-none focus:ring-2 focus:ring-blue-900 focus:ring-offset-0"
+          >
             Sign In
           </Button>
         </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Don't have an account?{" "}
-            <button
-              onClick={() => setLocation("/register")}
-              className="text-primary hover:underline"
-              data-testid="link-register"
-            >
-              Create one
-            </button>
-          </p>
-        </div>
       </Card>
     </div>
   );

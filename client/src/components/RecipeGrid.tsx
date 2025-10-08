@@ -6,11 +6,11 @@ interface RecipeGridProps {
   emptyMessage?: string;
 }
 
-export function RecipeGrid({ recipes, emptyMessage = "No recipes found" }: RecipeGridProps) {
+export function RecipeGrid({ recipes, emptyMessage = "No recipes found." }: RecipeGridProps) {
   if (recipes.length === 0) {
     return (
       <div className="text-center py-16" data-testid="text-no-recipes">
-        <p className="text-muted-foreground text-lg">{emptyMessage}</p>
+        <p className="text-white text-lg">{emptyMessage}</p>
       </div>
     );
   }

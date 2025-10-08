@@ -13,13 +13,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Plus, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
@@ -28,9 +21,9 @@ interface AddRecipeFormProps {
 }
 
 export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
-  const [ingredients, setIngredients] = useState<Array<{ name: string; amount: string; unit?: string }>>([
-    { name: "", amount: "", unit: "" }
-  ]);
+  const [ingredients, setIngredients] = useState<
+    Array<{ name: string; amount: string; unit?: string }>
+  >([{ name: "", amount: "", unit: "" }]);
   const [steps, setSteps] = useState<string[]>([""]);
 
   const form = useForm<InsertRecipe>({
@@ -39,19 +32,10 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
       title: "",
       description: "",
       imageUrl: "",
-      cookTime: 30,
-      servings: 4,
-      difficulty: "Easy",
       cuisine: "",
       dietary: [],
       ingredients: [{ name: "", amount: "", unit: "" }],
       steps: [""],
-      nutrition: {
-        calories: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-      },
     },
   });
 
@@ -79,12 +63,17 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
     });
   };
 
+  // common button styling for consistency
+  const blueButtonClasses =
+    "bg-blue-950 text-white border-blue-950 hover:bg-blue-900 hover:border-blue-900";
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
+        {/* Basic Info */}
         <Card className="p-6">
           <h3 className="font-serif text-2xl font-semibold mb-6">Basic Information</h3>
-          
+
           <div className="space-y-4">
             <FormField
               control={form.control}
@@ -93,7 +82,11 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
                 <FormItem>
                   <FormLabel>Recipe Title</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Chocolate Chip Cookies" {...field} data-testid="input-recipe-title" />
+                    <Input
+                      placeholder=""
+                      {...field}
+                      data-testid="input-recipe-title"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -107,9 +100,9 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="Brief description of your recipe..." 
-                      {...field} 
+                    <Textarea
+                      placeholder=""
+                      {...field}
                       data-testid="input-recipe-description"
                     />
                   </FormControl>
@@ -117,86 +110,30 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
                 </FormItem>
               )}
             />
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="cookTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cook Time (minutes)</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        {...field} 
-                        onChange={(e) => field.onChange(parseInt(e.target.value))}
-                        data-testid="input-cook-time"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="servings"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Servings</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        {...field} 
-                        onChange={(e) => field.onChange(parseInt(e.target.value))}
-                        data-testid="input-servings"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="difficulty"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Difficulty</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-difficulty">
-                          <SelectValue placeholder="Select difficulty" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Easy">Easy</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="Hard">Hard</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
           </div>
         </Card>
 
+        {/* Ingredients */}
         <Card className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-serif text-2xl font-semibold">Ingredients</h3>
-            <Button type="button" onClick={addIngredient} variant="outline" size="sm" data-testid="button-add-ingredient">
+            <Button
+              type="button"
+              onClick={addIngredient}
+              variant="outline"
+              size="sm"
+              data-testid="button-add-ingredient"
+            >
               <Plus className="h-4 w-4 mr-2" />
               Add Ingredient
             </Button>
           </div>
-          
+
           <div className="space-y-3">
             {ingredients.map((_, index) => (
               <div key={index} className="flex gap-3">
                 <Input
-                  placeholder="Ingredient name"
+                  placeholder=""
                   value={ingredients[index].name}
                   onChange={(e) => {
                     const newIngredients = [...ingredients];
@@ -244,15 +181,22 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
           </div>
         </Card>
 
+        {/* Cooking Steps */}
         <Card className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-serif text-2xl font-semibold">Cooking Steps</h3>
-            <Button type="button" onClick={addStep} variant="outline" size="sm" data-testid="button-add-step">
+            <Button
+              type="button"
+              onClick={addStep}
+              variant="outline"
+              size="sm"
+              data-testid="button-add-step"
+            >
               <Plus className="h-4 w-4 mr-2" />
               Add Step
             </Button>
           </div>
-          
+
           <div className="space-y-3">
             {steps.map((_, index) => (
               <div key={index} className="flex gap-3">
@@ -260,7 +204,7 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
                   {index + 1}
                 </div>
                 <Textarea
-                  placeholder="Describe this step..."
+                  placeholder=""
                   value={steps[index]}
                   onChange={(e) => {
                     const newSteps = [...steps];
@@ -287,93 +231,16 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
           </div>
         </Card>
 
-        <Card className="p-6">
-          <h3 className="font-serif text-2xl font-semibold mb-6">Nutrition Facts (per serving)</h3>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <FormField
-              control={form.control}
-              name="nutrition.calories"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Calories</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number" 
-                      {...field} 
-                      onChange={(e) => field.onChange(parseInt(e.target.value))}
-                      data-testid="input-calories"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="nutrition.protein"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Protein (g)</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number" 
-                      {...field} 
-                      onChange={(e) => field.onChange(parseInt(e.target.value))}
-                      data-testid="input-protein"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="nutrition.carbs"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Carbs (g)</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number" 
-                      {...field} 
-                      onChange={(e) => field.onChange(parseInt(e.target.value))}
-                      data-testid="input-carbs"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="nutrition.fat"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Fat (g)</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number" 
-                      {...field} 
-                      onChange={(e) => field.onChange(parseInt(e.target.value))}
-                      data-testid="input-fat"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </Card>
-
+        {/* Save Button */}
         <div className="flex justify-end gap-4">
           <Button type="button" variant="outline" data-testid="button-cancel">
             Cancel
           </Button>
-          <Button type="submit" data-testid="button-submit-recipe">
+          <Button
+            type="submit"
+            data-testid="button-submit-recipe"
+            className={blueButtonClasses}
+          >
             Save Recipe
           </Button>
         </div>

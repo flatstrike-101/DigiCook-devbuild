@@ -2,7 +2,7 @@ import { Recipe } from "@shared/schema";
 
 // 20 starter recipes for the DigiCook app
 export const starterRecipes: Recipe[] = [
-  {
+  /*{
     id: "1",
     title: "Classic Spaghetti Carbonara",
     description: "A creamy Italian pasta dish with eggs, cheese, and pancetta",
@@ -592,5 +592,5 @@ export const starterRecipes: Recipe[] = [
     ],
     nutrition: { calories: 280, protein: 6, carbs: 52, fat: 8, fiber: 10 },
     isPersonal: false,
-  },
+  },*/
 ];

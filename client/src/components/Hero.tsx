@@ -39,18 +39,18 @@ export function Hero({ onSearch }: HeroProps) {
                 type="search"
                 name="search"
                 placeholder="Search for a recipe"
-                className="pl-10 h-12 text-base bg-white/95 backdrop-blur border-white/20"
-                data-testid="input-hero-search"
-              />
+                className="w-full h-12 px-10 py-2 text-white placeholder-gray-400 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+                data-testid="input-search"
+/>
             </div>
-            <Button 
-              type="submit" 
-              size="lg" 
-              className="h-12"
+            <Button
+              type="submit"
+              size="lg"
+              className="h-12 bg-blue-950 text-white border-blue-950 hover:bg-blue-800 hover:border-blue-700"
               data-testid="button-hero-search"
             >
-              Search
-            </Button>
+            Search
+          </Button>
           </div>
         </form>
       </div>

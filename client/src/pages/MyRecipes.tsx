@@ -14,6 +14,10 @@ export default function MyRecipes() {
     setRecipes(getPersonalRecipes());
   }, []);
 
+  // common button classes for dark blue style
+  const blueButtonClasses =
+    "bg-blue-950 !text-white !border-blue-950 hover:!bg-blue-900 hover:!border-blue-900 flex items-center gap-2 px-4 py-2 rounded-md";
+
   return (
     <div className="min-h-screen">
       <div className="bg-muted/50 border-b py-12">
@@ -22,12 +26,15 @@ export default function MyRecipes() {
             <div>
               <h1 className="font-serif text-4xl font-bold mb-2">My Recipes</h1>
               <p className="text-muted-foreground">
-                Your personal collection of recipes
               </p>
             </div>
-            
-            <Button onClick={() => setLocation("/add-recipe")} data-testid="button-add-recipe">
-              <PlusCircle className="h-4 w-4 mr-2" />
+
+            <Button
+              onClick={() => setLocation("/add-recipe")}
+              data-testid="button-add-recipe"
+              className={blueButtonClasses}
+            >
+              <PlusCircle className="h-4 w-4" />
               Add New Recipe
             </Button>
           </div>
@@ -36,15 +43,9 @@ export default function MyRecipes() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {recipes.length === 0 ? (
-          <div className="text-center py-16" data-testid="text-empty-state">
-            <h3 className="text-2xl font-semibold mb-2">No recipes yet</h3>
-            <p className="text-muted-foreground mb-6">
-              Start creating your own recipes to see them here
-            </p>
-            <Button onClick={() => setLocation("/add-recipe")} data-testid="button-create-first">
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Create Your First Recipe
-            </Button>
+          <div className="flex flex-col items-center py-16 gap-4">
+            <p className="text-white text-lg">No recipes found</p>
+            {/* Removed the "Add a Recipe" button */}
           </div>
         ) : (
           <>
@@ -61,3 +62,4 @@ export default function MyRecipes() {
     </div>
   );
 }
+
