@@ -4,15 +4,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { login } from "../auth";
+import AuthSuccessModal from "@/components/AuthSuccessModal";
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [showModal, setShowModal] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log("Login attempted with:", formData);
-    alert("Login functionality will be implemented when backend is ready!");
+    try {
+      await login(formData.email, formData.password);
+      console.log("User logged in:", formData.email);
+      setShowModal(true);
+    } catch (error) {
+      console.error("Login error:", error);
+      alert("❌ Login failed. Check console for details.");
+    }
   };
 
   return (
@@ -60,6 +69,13 @@ export default function Login() {
           </Button>
         </form>
       </Card>
+
+      {/* ✅ Success Modal */}
+      <AuthSuccessModal
+        show={showModal}
+        type="login"
+        onClose={() => setShowModal(false)}
+      />
     </div>
   );
 }

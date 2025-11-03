@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { signup } from "../auth";
+import AuthSuccessModal from "@/components/AuthSuccessModal";
 
 export default function Register() {
   const [, setLocation] = useLocation();
@@ -13,11 +15,24 @@ export default function Register() {
     password: "",
     confirmPassword: "",
   });
+  const [showModal, setShowModal] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log("Registration attempted with:", formData);
-    alert("Registration functionality will be implemented when backend is ready!");
+
+    if (formData.password !== formData.confirmPassword) {
+      alert("❌ Passwords do not match!");
+      return;
+    }
+
+    try {
+      await signup(formData.email, formData.password);
+      console.log("User registered:", formData.email);
+      setShowModal(true); // show success modal
+    } catch (error) {
+      console.error("Signup error:", error);
+      alert("❌ Signup failed. Check console for details.");
+    }
   };
 
   return (
@@ -25,7 +40,7 @@ export default function Register() {
       <Card className="w-full max-w-md p-8">
         <div className="text-center mb-8">
           <h1 className="font-serif text-3xl font-bold mb-2">Sign Up</h1>
-          <p className="text-muted-foreground">Start Learning to cook today!</p>
+          <p className="text-muted-foreground">Start learning to cook today!</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -35,7 +50,9 @@ export default function Register() {
               id="name"
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
               data-testid="input-name"
             />
           </div>
@@ -46,7 +63,9 @@ export default function Register() {
               id="email"
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, email: e.target.value })
+              }
               data-testid="input-email"
             />
           </div>
@@ -57,7 +76,9 @@ export default function Register() {
               id="password"
               type="password"
               value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, password: e.target.value })
+              }
               data-testid="input-password"
             />
           </div>
@@ -86,6 +107,13 @@ export default function Register() {
           </Button>
         </form>
       </Card>
+
+      {/* ✅ Success Modal */}
+      <AuthSuccessModal
+        show={showModal}
+        type="signup"
+        onClose={() => setShowModal(false)}
+      />
     </div>
   );
 }
