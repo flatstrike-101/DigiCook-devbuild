@@ -27,7 +27,7 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
   const [steps, setSteps] = useState<string[]>([""]);
 
   const form = useForm<InsertRecipe>({
-    resolver: zodResolver(insertRecipeSchema),
+  //  resolver: zodResolver(insertRecipeSchema),
     defaultValues: {
       title: "",
       description: "",
@@ -56,14 +56,14 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
   };
 
   const handleSubmit = (data: InsertRecipe) => {
-    onSubmit({
+    const recipeData: InsertRecipe = {
       ...data,
       ingredients,
       steps,
-    });
+    };
+    onSubmit(recipeData);
   };
 
-  // common button styling for consistency
   const blueButtonClasses =
     "bg-blue-950 text-white border-blue-950 hover:bg-blue-900 hover:border-blue-900";
 
@@ -72,7 +72,9 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
         {/* Basic Info */}
         <Card className="p-6">
-          <h3 className="font-serif text-2xl font-semibold mb-6">Basic Information</h3>
+          <h3 className="font-serif text-2xl font-semibold mb-6">
+            Basic Information
+          </h3>
 
           <div className="space-y-4">
             <FormField
@@ -133,7 +135,7 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
             {ingredients.map((_, index) => (
               <div key={index} className="flex gap-3">
                 <Input
-                  placeholder=""
+                  placeholder="Name"
                   value={ingredients[index].name}
                   onChange={(e) => {
                     const newIngredients = [...ingredients];
@@ -141,7 +143,6 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
                     setIngredients(newIngredients);
                   }}
                   className="flex-1"
-                  data-testid={`input-ingredient-name-${index}`}
                 />
                 <Input
                   placeholder="Amount"
@@ -152,7 +153,6 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
                     setIngredients(newIngredients);
                   }}
                   className="w-32"
-                  data-testid={`input-ingredient-amount-${index}`}
                 />
                 <Input
                   placeholder="Unit"
@@ -163,7 +163,6 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
                     setIngredients(newIngredients);
                   }}
                   className="w-24"
-                  data-testid={`input-ingredient-unit-${index}`}
                 />
                 {ingredients.length > 1 && (
                   <Button
@@ -171,7 +170,6 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
                     variant="ghost"
                     size="icon"
                     onClick={() => removeIngredient(index)}
-                    data-testid={`button-remove-ingredient-${index}`}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -181,7 +179,7 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
           </div>
         </Card>
 
-        {/* Cooking Steps */}
+        {/* Steps */}
         <Card className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-serif text-2xl font-semibold">Cooking Steps</h3>
@@ -190,7 +188,6 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
               onClick={addStep}
               variant="outline"
               size="sm"
-              data-testid="button-add-step"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Step
@@ -213,7 +210,6 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
                   }}
                   className="flex-1"
                   rows={2}
-                  data-testid={`input-step-${index}`}
                 />
                 {steps.length > 1 && (
                   <Button
@@ -221,7 +217,6 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
                     variant="ghost"
                     size="icon"
                     onClick={() => removeStep(index)}
-                    data-testid={`button-remove-step-${index}`}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -233,15 +228,11 @@ export function AddRecipeForm({ onSubmit }: AddRecipeFormProps) {
 
         {/* Save Button */}
         <div className="flex justify-end gap-4">
-          <Button type="button" variant="outline" data-testid="button-cancel">
+          <Button type="button" variant="outline">
             Cancel
           </Button>
-          <Button
-            type="submit"
-            data-testid="button-submit-recipe"
-            className={blueButtonClasses}
-          >
-            Save Recipe
+          <Button type="submit" className={blueButtonClasses}>
+            Add Recipe
           </Button>
         </div>
       </form>

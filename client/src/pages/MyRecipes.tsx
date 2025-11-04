@@ -1,20 +1,73 @@
 import { useState, useEffect } from "react";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { RecipeGrid } from "@/components/RecipeGrid";
-import { getPersonalRecipes } from "@/lib/localStorage";
-import { Recipe } from "@shared/schema";
+import { Card } from "@/components/ui/card";
+import { db, auth } from "../../firebase";
+import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+
+interface Recipe {
+  id: string;
+  title: string;
+  description: string;
+  ingredients: Array<{ name: string; amount: string; unit?: string }>;
+  steps: string[];
+  createdAt?: any;
+}
 
 export default function MyRecipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [selected, setSelected] = useState<Recipe | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   useEffect(() => {
-    setRecipes(getPersonalRecipes());
+    const fetchRecipes = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      try {
+        const q = query(collection(db, "recipes"), where("userId", "==", user.uid));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Recipe[];
+
+        setRecipes(data);
+      } catch (err) {
+        console.error("❌ Error loading recipes:", err);
+      }
+    };
+
+    fetchRecipes();
   }, []);
 
-  // common button classes for dark blue style
+  const handleDelete = async () => {
+    if (!selected) return;
+    try {
+      await deleteDoc(doc(db, "recipes", selected.id));
+      setRecipes((prev) => prev.filter((r) => r.id !== selected.id));
+      setConfirmDelete(false);
+      setSelected(null);
+
+      toast({
+        title: "Recipe deleted",
+        description: "Your recipe has been successfully removed.",
+      });
+    } catch (err) {
+      console.error("❌ Error deleting recipe:", err);
+      toast({
+        title: "Error deleting recipe",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const blueButtonClasses =
     "bg-blue-950 !text-white !border-blue-950 hover:!bg-blue-900 hover:!border-blue-900 flex items-center gap-2 px-4 py-2 rounded-md";
 
@@ -26,6 +79,7 @@ export default function MyRecipes() {
             <div>
               <h1 className="font-serif text-4xl font-bold mb-2">My Recipes</h1>
               <p className="text-muted-foreground">
+                View and manage your saved recipes
               </p>
             </div>
 
@@ -45,7 +99,6 @@ export default function MyRecipes() {
         {recipes.length === 0 ? (
           <div className="flex flex-col items-center py-16 gap-4">
             <p className="text-white text-lg">No recipes found</p>
-            {/* Removed the "Add a Recipe" button */}
           </div>
         ) : (
           <>
@@ -55,11 +108,127 @@ export default function MyRecipes() {
                 {recipes.length} {recipes.length === 1 ? "recipe" : "recipes"}
               </p>
             </div>
-            <RecipeGrid recipes={recipes} />
+
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {recipes.map((recipe) => (
+                <Card
+                  key={recipe.id}
+                  onClick={() => setSelected(recipe)}
+                  className="cursor-pointer p-6 hover:shadow-lg transition-shadow border border-border"
+                >
+                  <h2 className="font-serif text-2xl font-semibold mb-2">
+                    {recipe.title}
+                  </h2>
+                  <p className="text-muted-foreground line-clamp-3">
+                    {recipe.description}
+                  </p>
+                </Card>
+              ))}
+            </div>
           </>
         )}
       </div>
+
+      {/* Recipe popup */}
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999]"
+            onClick={() => setSelected(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-background border border-border rounded-xl shadow-xl p-8 w-full max-w-2xl text-left"
+            >
+              <h2 className="text-3xl font-serif font-semibold mb-4">
+                {selected.title}
+              </h2>
+              <p className="mb-6 text-muted-foreground">{selected.description}</p>
+
+              <div className="mb-6">
+                <h3 className="font-semibold mb-2 text-lg">Ingredients</h3>
+                <ul className="list-disc list-inside space-y-1">
+                  {selected.ingredients.map((ing, i) => (
+                    <li key={i}>
+                      {ing.amount} {ing.unit} {ing.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2 text-lg">Steps</h3>
+                <ol className="list-decimal list-inside space-y-1">
+                  {selected.steps.map((step, i) => (
+                    <li key={i}>{step}</li>
+                  ))}
+                </ol>
+              </div>
+
+              <div className="mt-8 flex justify-between">
+                <Button
+                  onClick={() => setConfirmDelete(true)}
+                  variant="destructive"
+                  className="flex items-center gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Recipe
+                </Button>
+
+                <Button onClick={() => setSelected(null)} variant="secondary">
+                  Close
+                </Button>
+              </div>
+
+              {/* Delete confirmation popup */}
+              <AnimatePresence>
+                {confirmDelete && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]"
+                  >
+                    <motion.div
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.8, opacity: 0 }}
+                      className="bg-background border border-border rounded-xl shadow-xl p-8 w-full max-w-md text-center"
+                    >
+                      <h2 className="text-xl font-semibold mb-4">
+                        Are you sure you want to delete this recipe?
+                      </h2>
+                      <p className="text-muted-foreground mb-6">
+                        This action cannot be undone.
+                      </p>
+                      <div className="flex justify-center gap-4">
+                        <Button
+                          onClick={handleDelete}
+                          variant="destructive"
+                        >
+                          Yes, Delete
+                        </Button>
+                        <Button
+                          onClick={() => setConfirmDelete(false)}
+                          variant="secondary"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-

@@ -18,21 +18,42 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               Personal
             </Badge>
           )}
+
           <div>
-            <h3 className="font-serif text-xl font-semibold line-clamp-1" data-testid={`text-recipe-title-${recipe.id}`}>
+            <h3
+              className="font-serif text-xl font-semibold line-clamp-1"
+              data-testid={`text-recipe-title-${recipe.id}`}
+            >
               {recipe.title}
             </h3>
             <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
               {recipe.description}
             </p>
           </div>
-          
-          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-auto">
-            <div className="flex items-center gap-1" data-testid={`text-cook-time-${recipe.id}`}>
-              <Clock className="h-4 w-4" />
-              <span>{recipe.cookTime} min</span>
+
+          {/* Time Information */}
+          {(recipe.prepTime || recipe.cookTime || recipe.totalTime) && (
+            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground mt-auto">
+              {recipe.prepTime && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  <span>Prep: {recipe.prepTime}</span>
+                </div>
+              )}
+              {recipe.cookTime && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  <span>Cook: {recipe.cookTime}</span>
+                </div>
+              )}
+              {recipe.totalTime && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  <span>Total: {recipe.totalTime}</span>
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
       </Card>
     </Link>
