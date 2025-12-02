@@ -13,6 +13,7 @@ import {
   doc,
   addDoc,
   serverTimestamp,
+  getDoc,
 } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
@@ -32,7 +33,7 @@ export default function MyRecipes() {
   const [selected, setSelected] = useState<Recipe | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [shareEmail, setShareEmail] = useState("");
+  const [shareUsername, setShareUsername] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -81,7 +82,7 @@ export default function MyRecipes() {
   };
 
   const openShareModal = () => {
-    setShareEmail("");
+    setShareUsername("");
     setShowShareModal(true);
   };
 
@@ -98,29 +99,69 @@ export default function MyRecipes() {
       return;
     }
 
-    const trimmed = shareEmail.trim();
-    if (!trimmed) {
+    const raw = shareUsername.trim();
+    const usernameId = raw.replace(/^@/, "").toLowerCase();
+
+    if (!usernameId) {
       toast({
-        title: "Email required",
-        description: "Please enter an email to share this recipe with.",
+        title: "Username required",
+        description: "Please enter a username to share this recipe with.",
         variant: "destructive",
       });
       return;
     }
 
     try {
+      const usernameRef = doc(db, "usernames", usernameId);
+      const usernameSnap = await getDoc(usernameRef);
+      if (!usernameSnap.exists()) {
+        toast({
+          title: "User not found",
+          description: "No user with that username exists.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const data = usernameSnap.data() as any;
+      const toUid = data.uid as string;
+
+      if (toUid === user.uid) {
+        toast({
+          title: "Cannot share to yourself",
+          description: "Choose another username.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let fromDisplay = user.email ?? "";
+      try {
+        const fromProfileSnap = await getDoc(doc(db, "users", user.uid));
+        if (fromProfileSnap.exists()) {
+          const profile = fromProfileSnap.data() as any;
+          fromDisplay =
+            profile.displayUsername ||
+            profile.username ||
+            fromDisplay;
+        }
+      } catch (e) {
+        console.error("Error loading sender profile:", e);
+      }
+
       await addDoc(collection(db, "recipeShares"), {
         recipeId: selected.id,
         recipeTitle: selected.title,
-        fromEmail: user.email ?? "",
-        toEmail: trimmed,
+        fromUid: user.uid,
+        fromUsername: fromDisplay,
+        toUid,
         createdAt: serverTimestamp(),
       });
 
       setShowShareModal(false);
       toast({
         title: "Recipe shared",
-        description: `Share request sent to ${trimmed}.`,
+        description: `Share request sent to @${usernameId}.`,
       });
     } catch (err) {
       console.error("Error sharing recipe:", err);
@@ -310,13 +351,13 @@ export default function MyRecipes() {
                         Share this recipe
                       </h2>
                       <p className="text-muted-foreground mb-4">
-                        Enter the email of the person you want to share this recipe with.
+                        Enter the username of the person you want to share this recipe with.
                       </p>
                       <Input
-                        type="email"
-                        placeholder="friend@example.com"
-                        value={shareEmail}
-                        onChange={(e) => setShareEmail(e.target.value)}
+                        type="text"
+                        placeholder="Enter username"
+                        value={shareUsername}
+                        onChange={(e) => setShareUsername(e.target.value)}
                         className="mb-6"
                       />
                       <div className="flex justify-center gap-4">

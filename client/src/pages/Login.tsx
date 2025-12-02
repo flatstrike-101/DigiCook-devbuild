@@ -4,21 +4,53 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { login } from "../auth";
 import AuthSuccessModal from "@/components/AuthSuccessModal";
+
+import { login } from "../auth";
+import { db } from "../../firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [formData, setFormData] = useState({
+    identifier: "", // email OR username
+    password: "",
+  });
   const [showModal, setShowModal] = useState(false);
+
+  const resolveEmail = async (identifier: string): Promise<string> => {
+    // If identifier contains @ → it's an email
+    if (identifier.includes("@")) return identifier;
+
+    // Otherwise treat as username
+    const usernameLower = identifier.toLowerCase();
+    const usernameRef = doc(db, "usernames", usernameLower);
+    const usernameSnap = await getDoc(usernameRef);
+
+    if (!usernameSnap.exists()) throw new Error("Username not found");
+
+    const { uid } = usernameSnap.data() as { uid: string };
+
+    // Get user’s email from Firestore
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) throw new Error("User profile not found");
+
+    const { email } = userSnap.data() as { email: string };
+
+    return email;
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      await login(formData.email, formData.password);
-      console.log("User logged in:", formData.email);
+      const email = await resolveEmail(formData.identifier);
+
+      await login(email, formData.password);
+      console.log("User logged in:", email);
       setShowModal(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
       alert("❌ Login failed. Check console for details.");
     }
@@ -33,15 +65,16 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="identifier">Email or Username</Label>
             <Input
-              id="email"
-              type="email"
-              value={formData.email}
+              id="identifier"
+              type="text"
+              placeholder="Enter your username or email"
+              value={formData.identifier}
               onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
+                setFormData({ ...formData, identifier: e.target.value })
               }
-              data-testid="input-email"
+              data-testid="input-identifier"
             />
           </div>
 
@@ -70,7 +103,6 @@ export default function Login() {
         </form>
       </Card>
 
-      {/* ✅ Success Modal */}
       <AuthSuccessModal
         show={showModal}
         type="login"

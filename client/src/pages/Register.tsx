@@ -6,11 +6,14 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { signup } from "../auth";
 import AuthSuccessModal from "@/components/AuthSuccessModal";
+import { db, auth } from "../../firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export default function Register() {
   const [, setLocation] = useLocation();
   const [formData, setFormData] = useState({
     name: "",
+    username: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -25,10 +28,50 @@ export default function Register() {
       return;
     }
 
+    const rawUsername = formData.username.trim();
+    const id = rawUsername.toLowerCase();
+
+    if (!id) {
+      alert("❌ Username is required.");
+      return;
+    }
+
+    if (!/^[a-z0-9_\.]+$/.test(id)) {
+      alert("❌ Username can only contain letters, numbers, dots, and underscores.");
+      return;
+    }
+
     try {
+      const usernameRef = doc(db, "usernames", id);
+      const existing = await getDoc(usernameRef);
+      if (existing.exists()) {
+        alert("❌ That username is already taken. Please choose another.");
+        return;
+      }
+
       await signup(formData.email, formData.password);
+      const user = auth.currentUser;
+      if (!user) {
+        alert("❌ Signup succeeded but user is not available. Please try logging in.");
+        return;
+      }
+
+      await setDoc(usernameRef, { uid: user.uid });
+
+      const userRef = doc(db, "users", user.uid);
+      await setDoc(
+        userRef,
+        {
+          username: id,
+          displayUsername: rawUsername,
+          fullName: formData.name,
+          email: formData.email,
+        },
+        { merge: true }
+      );
+
       console.log("User registered:", formData.email);
-      setShowModal(true); // show success modal
+      setShowModal(true);
     } catch (error) {
       console.error("Signup error:", error);
       alert("❌ Signup failed. Check console for details.");
@@ -54,6 +97,20 @@ export default function Register() {
                 setFormData({ ...formData, name: e.target.value })
               }
               data-testid="input-name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              type="text"
+              value={formData.username}
+              onChange={(e) =>
+                setFormData({ ...formData, username: e.target.value })
+              }
+              data-testid="input-username"
+              placeholder="e.g. digicook_chef"
             />
           </div>
 
@@ -108,7 +165,6 @@ export default function Register() {
         </form>
       </Card>
 
-      {/* ✅ Success Modal */}
       <AuthSuccessModal
         show={showModal}
         type="signup"

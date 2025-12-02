@@ -19,31 +19,32 @@ interface ShareNotification {
   id: string;
   recipeId: string;
   recipeTitle: string;
-  fromEmail: string;
-  toEmail: string;
+  fromUid: string;
+  fromUsername: string;
+  toUid: string;
   createdAt?: any;
 }
 
 interface Props {
-  userEmail?: string | null;
+  userId?: string | null;
 }
 
 const blueButtonClasses =
   "bg-blue-950 !text-white !border-blue-950 hover:!bg-blue-900 hover:!border-blue-900";
 
-export default function Notifications({ userEmail }: Props) {
+export default function Notifications({ userId }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<ShareNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   const loadNotifications = async () => {
-    if (!userEmail) return;
+    if (!userId) return;
     try {
       setLoading(true);
       const q = query(
         collection(db, "recipeShares"),
-        where("toEmail", "==", userEmail)
+        where("toUid", "==", userId)
       );
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map((docSnap) => ({
@@ -102,7 +103,7 @@ export default function Notifications({ userEmail }: Props) {
       await addDoc(collection(db, "recipes"), {
         ...recipeData,
         userId: currentUser.uid,
-        sharedFrom: share.fromEmail,
+        sharedFrom: share.fromUsername,
         sharedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
       });
@@ -138,7 +139,7 @@ export default function Notifications({ userEmail }: Props) {
     }
   };
 
-  if (!userEmail) return null;
+  if (!userId) return null;
 
   return (
     <div className="relative">
@@ -171,7 +172,7 @@ export default function Notifications({ userEmail }: Props) {
                     className="border border-border rounded-md p-3 text-sm"
                   >
                     <p className="text-sm mb-3">
-                      <span className="font-semibold">{n.fromEmail}</span>{" "}
+                      <span className="font-semibold">{n.fromUsername}</span>{" "}
                       would like to share a recipe
                     </p>
 

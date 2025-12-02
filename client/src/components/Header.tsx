@@ -34,18 +34,21 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 relative">
         <div className="flex items-center justify-between h-16 gap-4">
-
           <Link href="/" data-testid="link-home">
             <h1 className="text-xl font-semibold">DigiCook</h1>
           </Link>
 
           <nav className="hidden md:flex items-center gap-2">
             <Link href="/" data-testid="link-browse">
-              <Button variant="ghost" size="sm">Browse Recipes</Button>
+              <Button variant="ghost" size="sm">
+                Browse Recipes
+              </Button>
             </Link>
 
             <Link href="/my-recipes" data-testid="link-my-recipes">
-              <Button variant="ghost" size="sm">My Recipes</Button>
+              <Button variant="ghost" size="sm">
+                My Recipes
+              </Button>
             </Link>
 
             <Link href="/add-recipe" data-testid="link-add-recipe">
@@ -57,8 +60,7 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-3">
-
-            {user && <Notifications userEmail={user.email} />}
+            {user && <Notifications userId={user.uid} />}
 
             {user ? (
               <Button
@@ -72,20 +74,25 @@ export function Header() {
             ) : (
               <>
                 <Link href="/login" data-testid="link-login">
-                  <Button variant="ghost" className="flex items-center gap-2 px-4 py-2 text-lg">
+                  <Button
+                    variant="ghost"
+                    className="flex items-center gap-2 px-4 py-2 text-lg"
+                  >
                     <User className="h-6 w-6" />
                     <span>Sign In</span>
                   </Button>
                 </Link>
 
                 <Link href="/register" data-testid="link-register">
-                  <Button variant="ghost" className="flex items-center gap-2 px-4 py-2 text-lg">
+                  <Button
+                    variant="ghost"
+                    className="flex items-center gap-2 px-4 py-2 text-lg"
+                  >
                     <span>Sign Up</span>
                   </Button>
                 </Link>
               </>
             )}
-
           </div>
         </div>
       </div>
