@@ -1,11 +1,12 @@
 import { Link } from "wouter";
-import { Moon, Sun, User, PlusCircle, LogOut } from "lucide-react";
+import { User, PlusCircle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "./ThemeProvider";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../../firebase";
 import LogOutConfirmModal from "./LogOutConfirmModal";
+import Notifications from "./Notifications";
 
 export function Header() {
   const { theme, toggleTheme } = useTheme();
@@ -15,7 +16,6 @@ export function Header() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      console.log("Auth state changed:", currentUser);
       setUser(currentUser);
     });
     return () => unsubscribe();
@@ -25,7 +25,6 @@ export function Header() {
     try {
       await signOut(auth);
       setShowLogoutModal(false);
-      console.log("👋 Logged out successfully!");
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -33,21 +32,22 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 relative">
         <div className="flex items-center justify-between h-16 gap-4">
-          {/* Logo / Home link */}
+
           <Link href="/" data-testid="link-home">
             <h1 className="text-xl font-semibold">DigiCook</h1>
           </Link>
 
-          {/* Navigation links */}
           <nav className="hidden md:flex items-center gap-2">
             <Link href="/" data-testid="link-browse">
               <Button variant="ghost" size="sm">Browse Recipes</Button>
             </Link>
+
             <Link href="/my-recipes" data-testid="link-my-recipes">
               <Button variant="ghost" size="sm">My Recipes</Button>
             </Link>
+
             <Link href="/add-recipe" data-testid="link-add-recipe">
               <Button variant="ghost" size="sm">
                 <PlusCircle className="h-4 w-4 mr-2" />
@@ -56,8 +56,10 @@ export function Header() {
             </Link>
           </nav>
 
-          {/* Right-side authentication buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+
+            {user && <Notifications userEmail={user.email} />}
+
             {user ? (
               <Button
                 onClick={() => setShowLogoutModal(true)}
@@ -70,30 +72,24 @@ export function Header() {
             ) : (
               <>
                 <Link href="/login" data-testid="link-login">
-                  <Button
-                    variant="ghost"
-                    className="flex items-center gap-2 px-4 py-2 text-lg"
-                  >
+                  <Button variant="ghost" className="flex items-center gap-2 px-4 py-2 text-lg">
                     <User className="h-6 w-6" />
                     <span>Sign In</span>
                   </Button>
                 </Link>
 
                 <Link href="/register" data-testid="link-register">
-                  <Button
-                    variant="ghost"
-                    className="flex items-center gap-2 px-4 py-2 text-lg"
-                  >
+                  <Button variant="ghost" className="flex items-center gap-2 px-4 py-2 text-lg">
                     <span>Sign Up</span>
                   </Button>
                 </Link>
               </>
             )}
+
           </div>
         </div>
       </div>
 
-      {/* Logout Confirmation Modal */}
       <LogOutConfirmModal
         show={showLogoutModal}
         onCancel={() => setShowLogoutModal(false)}

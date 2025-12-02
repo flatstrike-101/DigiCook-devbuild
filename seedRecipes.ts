@@ -212,7 +212,7 @@ async function seed() {
     console.log(`✅ Synced (created or updated): ${recipe.title}`);
   }
 
-  console.log("🎉 All recipes synced or added successfully!");
+  console.log("All recipes synced or added successfully!");
 }
 
 seed().catch(console.error);
