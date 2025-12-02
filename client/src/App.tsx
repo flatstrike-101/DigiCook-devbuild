@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { useEffect } from "react";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -12,14 +13,38 @@ import AddRecipe from "@/pages/AddRecipe";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotFound from "@/pages/not-found";
+import { auth } from "../firebase";
+
+function ProtectedRoute({
+  component: Component,
+}: {
+  component: React.ComponentType<any>;
+}) {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!auth.currentUser) {
+      setLocation("/login");
+    }
+  }, [setLocation]);
+
+  if (!auth.currentUser) {
+    return null;
+  }
+
+  return <Component />;
+}
+
+const MyRecipesProtected = () => <ProtectedRoute component={MyRecipes} />;
+const AddRecipeProtected = () => <ProtectedRoute component={AddRecipe} />;
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/recipe/:id" component={RecipeDetail} />
-      <Route path="/my-recipes" component={MyRecipes} />
-      <Route path="/add-recipe" component={AddRecipe} />
+      <Route path="/my-recipes" component={MyRecipesProtected} />
+      <Route path="/add-recipe" component={AddRecipeProtected} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route component={NotFound} />
