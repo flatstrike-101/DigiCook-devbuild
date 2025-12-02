@@ -69,7 +69,6 @@ export default function Login() {
             <Input
               id="identifier"
               type="text"
-              placeholder="Enter your username or email"
               value={formData.identifier}
               onChange={(e) =>
                 setFormData({ ...formData, identifier: e.target.value })

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -13,22 +13,14 @@ import AddRecipe from "@/pages/AddRecipe";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotFound from "@/pages/not-found";
+import SettingsModal from "@/components/SettingsModal";
 import { auth } from "../firebase";
 
-function ProtectedRoute({
-  component: Component,
-}: {
-  component: React.ComponentType<any>;
-}) {
+function ProtectedRoute({ component: Component }) {
   const [, setLocation] = useLocation();
 
-  useEffect(() => {
-    if (!auth.currentUser) {
-      setLocation("/login");
-    }
-  }, [setLocation]);
-
   if (!auth.currentUser) {
+    setLocation("/login");
     return null;
   }
 
@@ -53,16 +45,31 @@ function Router() {
 }
 
 function App() {
+
+  // SETTINGS STATE LIVES **HERE**
+  const [showSettings, setShowSettings] = useState(false);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ThemeProvider>
           <div className="min-h-screen flex flex-col">
-            <Header />
+
+            {/* Pass function to Header */}
+            <Header onOpenSettings={() => setShowSettings(true)} />
+
             <main className="flex-1">
               <Router />
             </main>
+
+            {/* SETTINGS MODAL IS RENDERED HERE */}
+            <SettingsModal
+              show={showSettings}
+              onClose={() => setShowSettings(false)}
+            />
+
           </div>
+
           <Toaster />
         </ThemeProvider>
       </TooltipProvider>

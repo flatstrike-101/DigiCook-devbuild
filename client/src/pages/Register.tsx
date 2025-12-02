@@ -110,7 +110,6 @@ export default function Register() {
                 setFormData({ ...formData, username: e.target.value })
               }
               data-testid="input-username"
-              placeholder="e.g. digicook_chef"
             />
           </div>
 
