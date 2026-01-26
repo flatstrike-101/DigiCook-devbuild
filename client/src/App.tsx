@@ -10,6 +10,8 @@ import Home from "@/pages/Home";
 import RecipeDetail from "@/pages/RecipeDetail";
 import MyRecipes from "@/pages/MyRecipes";
 import AddRecipe from "@/pages/AddRecipe";
+import EditRecipe from "@/pages/EditRecipe";
+import FriendActivity from "@/pages/FriendActivity";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotFound from "@/pages/not-found";
@@ -29,6 +31,10 @@ function ProtectedRoute({ component: Component }) {
 
 const MyRecipesProtected = () => <ProtectedRoute component={MyRecipes} />;
 const AddRecipeProtected = () => <ProtectedRoute component={AddRecipe} />;
+const EditRecipeProtected = () => <ProtectedRoute component={EditRecipe} />;
+const FriendActivityProtected = () => (
+  <ProtectedRoute component={FriendActivity} />
+);
 
 function Router() {
   return (
@@ -37,6 +43,8 @@ function Router() {
       <Route path="/recipe/:id" component={RecipeDetail} />
       <Route path="/my-recipes" component={MyRecipesProtected} />
       <Route path="/add-recipe" component={AddRecipeProtected} />
+      <Route path="/edit-recipe/:id" component={EditRecipeProtected} />
+      <Route path="/friends" component={FriendActivityProtected} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route component={NotFound} />
@@ -45,8 +53,6 @@ function Router() {
 }
 
 function App() {
-
-  // SETTINGS STATE LIVES **HERE**
   const [showSettings, setShowSettings] = useState(false);
 
   return (
@@ -54,22 +60,15 @@ function App() {
       <TooltipProvider>
         <ThemeProvider>
           <div className="min-h-screen flex flex-col">
-
-            {/* Pass function to Header */}
             <Header onOpenSettings={() => setShowSettings(true)} />
-
             <main className="flex-1">
               <Router />
             </main>
-
-            {/* SETTINGS MODAL IS RENDERED HERE */}
             <SettingsModal
               show={showSettings}
               onClose={() => setShowSettings(false)}
             />
-
           </div>
-
           <Toaster />
         </ThemeProvider>
       </TooltipProvider>

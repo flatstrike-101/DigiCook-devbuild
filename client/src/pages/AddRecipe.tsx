@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AddRecipeForm } from "@/components/AddRecipeForm";
 import { InsertRecipe } from "@shared/schema";
 import { db, auth } from "../../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AddRecipe() {
@@ -23,25 +23,34 @@ export default function AddRecipe() {
     }
 
     try {
-      // ✅ Save recipe directly to Firestore
+      const uid = user.uid;
+
+      let originalChefName = user.email ?? "Unknown";
+
+      const profileSnap = await getDoc(doc(db, "users", uid));
+      if (profileSnap.exists()) {
+        const p = profileSnap.data() as any;
+        originalChefName = p.displayUsername || p.username || p.fullName || originalChefName;
+      }
+
       const docRef = await addDoc(collection(db, "recipes"), {
         title: recipe.title,
         description: recipe.description,
         ingredients: recipe.ingredients,
         steps: recipe.steps,
-        userId: user.uid,
+        userId: uid,
         createdAt: serverTimestamp(),
+        originalChefUid: uid,
+        originalChefName,
       });
 
       console.log("✅ Recipe added with ID:", docRef.id);
 
-      // ✅ Success toast
       toast({
         title: "Recipe saved!",
         description: "Your recipe has been added to your collection.",
       });
 
-      // ✅ Redirect to My Recipes
       setLocation("/my-recipes");
     } catch (error) {
       console.error("❌ Firestore error:", error);
@@ -74,9 +83,8 @@ export default function AddRecipe() {
         </div>
       </div>
 
-      {/* ✅ Firestore saving is handled here only */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <AddRecipeForm onSubmit={handleSubmit} />
+        <AddRecipeForm onSubmit={handleSubmit} submitLabel="Add Recipe" />
       </div>
     </div>
   );

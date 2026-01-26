@@ -208,7 +208,7 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
           <div className="space-y-8">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-lg font-semibold">Username</p>
+                <p className="text-lg font-semibold">Username:</p>
                 <p className="text-base text-muted-foreground">{username}</p>
               </div>
 
@@ -229,7 +229,6 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-lg font-semibold">Email</p>
-                <p className="text-base text-muted-foreground">{email}</p>
               </div>
 
               <Button

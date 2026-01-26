@@ -26,6 +26,8 @@ interface Recipe {
   ingredients: Array<{ name: string; amount: string; unit?: string }>;
   steps: string[];
   createdAt?: any;
+  originalChefName?: string;
+  originalChefUid?: string;
 }
 
 export default function MyRecipes() {
@@ -135,18 +137,33 @@ export default function MyRecipes() {
         return;
       }
 
-      let fromDisplay = user.email ?? "";
+      let fromDisplay = "";
+
       try {
-        const fromProfileSnap = await getDoc(doc(db, "users", user.uid));
-        if (fromProfileSnap.exists()) {
-          const profile = fromProfileSnap.data() as any;
-          fromDisplay =
-            profile.displayUsername ||
-            profile.username ||
-            fromDisplay;
+        const usernamesRef = collection(db, "usernames");
+        const usernameQuery = query(usernamesRef, where("uid", "==", user.uid));
+        const usernameSnapForSender = await getDocs(usernameQuery);
+
+        if (!usernameSnapForSender.empty) {
+          fromDisplay = usernameSnapForSender.docs[0].id;
         }
       } catch (e) {
-        console.error("Error loading sender profile:", e);
+        console.error("Error loading username mapping:", e);
+      }
+
+      if (!fromDisplay) {
+        try {
+          const fromProfileSnap = await getDoc(doc(db, "users", user.uid));
+          if (fromProfileSnap.exists()) {
+            const profile = fromProfileSnap.data() as any;
+            fromDisplay = profile.displayUsername || profile.username || user.email || "";
+          } else {
+            fromDisplay = user.email ?? "";
+          }
+        } catch (e) {
+          console.error("Error loading sender profile:", e);
+          fromDisplay = user.email ?? "";
+        }
       }
 
       await addDoc(collection(db, "recipeShares"), {
@@ -219,12 +236,8 @@ export default function MyRecipes() {
                   onClick={() => setSelected(recipe)}
                   className="cursor-pointer p-6 hover:shadow-lg transition-shadow border border-border"
                 >
-                  <h2 className="font-serif text-2xl font-semibold mb-2">
-                    {recipe.title}
-                  </h2>
-                  <p className="text-muted-foreground line-clamp-3">
-                    {recipe.description}
-                  </p>
+                  <h2 className="font-serif text-2xl font-semibold mb-2">{recipe.title}</h2>
+                  <p className="text-muted-foreground line-clamp-3">{recipe.description}</p>
                 </Card>
               ))}
             </div>
@@ -257,10 +270,16 @@ export default function MyRecipes() {
                 <X className="h-5 w-5" />
               </button>
 
-              <h2 className="text-3xl font-serif font-semibold mb-4">
-                {selected.title}
-              </h2>
-              <p className="mb-6 text-muted-foreground">{selected.description}</p>
+              <h2 className="text-3xl font-serif font-semibold mb-4">{selected.title}</h2>
+              <p className="mb-2 text-muted-foreground">{selected.description}</p>
+
+              {selected.originalChefName && (
+                <p className="mb-6 text-sm text-muted-foreground">
+                  <span className="font-semibold">Original Chef:</span> {selected.originalChefName}
+                </p>
+              )}
+
+              {!selected.originalChefName && <div className="mb-6" />}
 
               <div className="mb-6">
                 <h3 className="font-semibold mb-2 text-lg">Ingredients</h3>
@@ -282,19 +301,27 @@ export default function MyRecipes() {
                 </ol>
               </div>
 
-              <div className="mt-8 flex justify-between">
+              <div className="mt-8 flex items-center justify-between">
                 <Button
-                  onClick={() => setConfirmDelete(true)}
-                  variant="destructive"
-                  className="flex items-center gap-2"
+                  onClick={() => {
+                    const id = selected.id;
+                    setSelected(null);
+                    setLocation(`/edit-recipe/${id}`);
+                  }}
+                  className={blueButtonClasses}
                 >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Recipe
+                  Edit Recipe
                 </Button>
 
-                <Button onClick={openShareModal} className={blueButtonClasses}>
-                  Share Recipe
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button onClick={() => setConfirmDelete(true)} variant="destructive" size="icon">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+
+                  <Button onClick={openShareModal} className={blueButtonClasses}>
+                    Share Recipe
+                  </Button>
+                </div>
               </div>
 
               <AnimatePresence>
@@ -314,17 +341,12 @@ export default function MyRecipes() {
                       <h2 className="text-xl font-semibold mb-4">
                         Are you sure you want to delete this recipe?
                       </h2>
-                      <p className="text-muted-foreground mb-6">
-                        This action cannot be undone.
-                      </p>
+                      <p className="text-muted-foreground mb-6">This action cannot be undone.</p>
                       <div className="flex justify-center gap-4">
                         <Button onClick={handleDelete} variant="destructive">
                           Yes, Delete
                         </Button>
-                        <Button
-                          onClick={() => setConfirmDelete(false)}
-                          variant="secondary"
-                        >
+                        <Button onClick={() => setConfirmDelete(false)} variant="secondary">
                           Cancel
                         </Button>
                       </div>
@@ -347,9 +369,7 @@ export default function MyRecipes() {
                       exit={{ scale: 0.8, opacity: 0 }}
                       className="bg-background border border-border rounded-xl shadow-xl p-8 w-full max-w-md text-center"
                     >
-                      <h2 className="text-xl font-semibold mb-4">
-                        Share this recipe
-                      </h2>
+                      <h2 className="text-xl font-semibold mb-4">Share this recipe</h2>
                       <p className="text-muted-foreground mb-4">
                         Enter the username of the person you want to share this recipe with.
                       </p>
@@ -364,10 +384,7 @@ export default function MyRecipes() {
                         <Button onClick={handleShareConfirm} className={blueButtonClasses}>
                           Share
                         </Button>
-                        <Button
-                          onClick={() => setShowShareModal(false)}
-                          variant="secondary"
-                        >
+                        <Button onClick={() => setShowShareModal(false)} variant="secondary">
                           Cancel
                         </Button>
                       </div>
