@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
-import { ArrowLeft, ThumbsUp } from "lucide-react";
+import { ArrowLeft, Star, StarHalf } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { auth, db } from "../../firebase";
 import {
@@ -41,8 +41,11 @@ type FeedPost = {
   ingredients?: Ingredient[];
   steps?: string[];
   createdAt?: any;
-  likeCount?: number;
-  likedByMe?: boolean;
+  ratingCount?: number;
+  ratingAverage?: number;
+  ratingTotal?: number;
+  weightedScore?: number;
+  myRating?: number | null;
 };
 
 type ProfileData = {
@@ -56,13 +59,96 @@ type ProfileStats = {
   recipesCreated: number;
   publishedPosts: number;
   friendsCount: number;
-  likesReceived: number;
+  ratingsReceived: number;
 };
+
+const RATING_VALUES = [1, 2, 3, 4, 5] as const;
+const RATING_WEIGHT_MIN_VOTES = 5;
+const DEFAULT_GLOBAL_AVERAGE = 4;
 
 function formatPostTime(createdAt: any) {
   const date = createdAt?.toDate?.();
   if (!date) return "just now";
   return formatDistanceToNow(date, { addSuffix: true });
+}
+
+function normalizeRating(value: unknown): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.round(n);
+  if (rounded < 1 || rounded > 5) return null;
+  return rounded;
+}
+
+function summarizeRatings(scoreDocs: Array<{ score?: unknown }>, legacyLikeCount: number) {
+  const ratings = scoreDocs
+    .map((docData) => normalizeRating(docData.score))
+    .filter((v): v is number => v !== null);
+
+  if (ratings.length > 0) {
+    const total = ratings.reduce((sum, rating) => sum + rating, 0);
+    const count = ratings.length;
+    return {
+      count,
+      total,
+      average: total / count,
+    };
+  }
+
+  if (legacyLikeCount > 0) {
+    const count = legacyLikeCount;
+    const total = legacyLikeCount * 4;
+    return {
+      count,
+      total,
+      average: total / count,
+    };
+  }
+
+  return {
+    count: 0,
+    total: 0,
+    average: 0,
+  };
+}
+
+function computeGlobalAverage(posts: FeedPost[], fallback = DEFAULT_GLOBAL_AVERAGE) {
+  const totals = posts.reduce(
+    (acc, post) => {
+      acc.count += post.ratingCount ?? 0;
+      acc.total += post.ratingTotal ?? 0;
+      return acc;
+    },
+    { total: 0, count: 0 }
+  );
+
+  if (totals.count <= 0) return fallback;
+  return totals.total / totals.count;
+}
+
+function computeWeightedScore(
+  ratingAverage: number,
+  ratingCount: number,
+  globalAverage: number,
+  minVotes = RATING_WEIGHT_MIN_VOTES
+) {
+  if (ratingCount <= 0) return 0;
+  return (ratingCount / (ratingCount + minVotes)) * ratingAverage + (minVotes / (ratingCount + minVotes)) * globalAverage;
+}
+
+function renderAverageStars(avg: number) {
+  const rounded = Math.round(avg * 2) / 2;
+  const fullStars = Math.floor(rounded);
+  const hasHalf = rounded % 1 !== 0;
+  const stars: JSX.Element[] = [];
+
+  for (let i = 0; i < fullStars; i += 1) {
+    stars.push(<Star key={`full-${i}`} className="rating-star-active h-3.5 w-3.5 fill-current" />);
+  }
+  if (hasHalf) {
+    stars.push(<StarHalf key="half" className="rating-star-active h-3.5 w-3.5 fill-current" />);
+  }
+  return stars;
 }
 
 export default function Profile() {
@@ -79,7 +165,7 @@ export default function Profile() {
   const [friends, setFriends] = useState<FriendDisplay[]>([]);
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [myUsername, setMyUsername] = useState("");
-  const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
+  const [ratingPostIds, setRatingPostIds] = useState<Set<string>>(new Set());
   const [copyingId, setCopyingId] = useState<string | null>(null);
 
   const blueButtonClasses =
@@ -156,22 +242,39 @@ export default function Profile() {
 
         const currentUid = auth.currentUser?.uid;
         if (currentUid) {
-          const postsWithLikes = await Promise.all(
+          const postsWithRatings = await Promise.all(
             userPosts.map(async (post) => {
-              const likesColRef = collection(db, "friendFeed", post.id, "likes");
-              const myLikeRef = doc(db, "friendFeed", post.id, "likes", currentUid);
-              const [countSnap, myLikeSnap] = await Promise.all([
-                getCountFromServer(likesColRef),
-                getDoc(myLikeRef),
+              const ratingsColRef = collection(db, "friendFeed", post.id, "scores");
+              const myRatingRef = doc(db, "friendFeed", post.id, "scores", currentUid);
+              const legacyLikesColRef = collection(db, "friendFeed", post.id, "likes");
+              const [ratingsSnap, myRatingSnap, legacyLikesSnap] = await Promise.all([
+                getDocs(ratingsColRef),
+                getDoc(myRatingRef),
+                getCountFromServer(legacyLikesColRef),
               ]);
+
+              const summary = summarizeRatings(
+                ratingsSnap.docs.map((snap) => snap.data() as any),
+                legacyLikesSnap.data().count ?? 0
+              );
+
               return {
                 ...post,
-                likeCount: countSnap.data().count,
-                likedByMe: myLikeSnap.exists(),
+                ratingCount: summary.count,
+                ratingTotal: summary.total,
+                ratingAverage: summary.average,
+                myRating: normalizeRating((myRatingSnap.data() as any)?.score),
               };
             })
           );
-          setPosts(postsWithLikes);
+
+          const globalAverage = computeGlobalAverage(postsWithRatings);
+          setPosts(
+            postsWithRatings.map((post) => ({
+              ...post,
+              weightedScore: computeWeightedScore(post.ratingAverage ?? 0, post.ratingCount ?? 0, globalAverage),
+            }))
+          );
         } else {
           setPosts(userPosts);
         }
@@ -196,26 +299,32 @@ export default function Profile() {
                 return authored.length;
               })
             : Promise.resolve(null);
-          const likesCountPromise = Promise.all(
+
+          const ratingsCountPromise = Promise.all(
             allPublishedSnap.docs.map(async (publishedDoc) => {
-              const likesCount = await getCountFromServer(
-                collection(db, "friendFeed", publishedDoc.id, "likes")
-              );
-              return likesCount.data().count;
+              const scoresSnap = await getDocs(collection(db, "friendFeed", publishedDoc.id, "scores"));
+              const validScores = scoresSnap.docs
+                .map((snap) => normalizeRating((snap.data() as any)?.score))
+                .filter((value): value is number => value !== null);
+
+              if (validScores.length > 0) return validScores.length;
+
+              const legacyLikes = await getCountFromServer(collection(db, "friendFeed", publishedDoc.id, "likes"));
+              return legacyLikes.data().count ?? 0;
             })
           );
 
-          const [recipesCreatedCount, likesPerPost] = await Promise.all([
+          const [recipesCreatedCount, ratingsPerPost] = await Promise.all([
             recipesCreatedCountPromise,
-            likesCountPromise,
+            ratingsCountPromise,
           ]);
 
-          const likesReceived = likesPerPost.reduce((sum, n) => sum + n, 0);
+          const ratingsReceived = ratingsPerPost.reduce((sum, n) => sum + n, 0);
           setStats({
             recipesCreated: recipesCreatedCount ?? publishedCount,
             publishedPosts: publishedCount,
-            friendsCount: 0, // updated after friends load
-            likesReceived,
+            friendsCount: 0,
+            ratingsReceived,
           });
         } else {
           setStats(null);
@@ -280,23 +389,44 @@ export default function Profile() {
     loadProfilePage();
   }, [profileUid, setLocation, toast]);
 
-  const handleToggleLike = async (postId: string) => {
+  const handleSetRating = async (postId: string, selectedRating: number) => {
     const u = auth.currentUser;
     if (!u) {
       toast({
         title: "Not signed in",
-        description: "You must be signed in to like recipes.",
+        description: "You must be signed in to rate recipes.",
         variant: "destructive",
       });
       return;
     }
 
-    if (likingPostIds.has(postId)) return;
+    if (ratingPostIds.has(postId)) return;
 
     const currentPost = posts.find((p) => p.id === postId);
-    const currentlyLiked = !!currentPost?.likedByMe;
+    if (!currentPost) return;
 
-    setLikingPostIds((prev) => {
+    const previousRating = normalizeRating(currentPost.myRating ?? null);
+    const nextRating = previousRating === selectedRating ? null : selectedRating;
+
+    const currentCount = currentPost.ratingCount ?? 0;
+    const currentTotal = currentPost.ratingTotal ?? (currentPost.ratingAverage ?? 0) * currentCount;
+
+    let optimisticCount = currentCount;
+    let optimisticTotal = currentTotal;
+    if (previousRating !== null && nextRating === null) {
+      optimisticCount = Math.max(0, currentCount - 1);
+      optimisticTotal = Math.max(0, currentTotal - previousRating);
+    } else if (previousRating === null && nextRating !== null) {
+      optimisticCount = currentCount + 1;
+      optimisticTotal = currentTotal + nextRating;
+    } else if (previousRating !== null && nextRating !== null) {
+      optimisticTotal = currentTotal - previousRating + nextRating;
+    }
+    const optimisticAverage = optimisticCount > 0 ? optimisticTotal / optimisticCount : 0;
+    const globalAverage = computeGlobalAverage(posts);
+    const optimisticWeighted = computeWeightedScore(optimisticAverage, optimisticCount, globalAverage);
+
+    setRatingPostIds((prev) => {
       const next = new Set(prev);
       next.add(postId);
       return next;
@@ -307,29 +437,39 @@ export default function Profile() {
         p.id === postId
           ? {
               ...p,
-              likedByMe: !currentlyLiked,
-              likeCount: Math.max(0, (p.likeCount ?? 0) + (currentlyLiked ? -1 : 1)),
+              myRating: nextRating,
+              ratingCount: optimisticCount,
+              ratingTotal: optimisticTotal,
+              ratingAverage: optimisticAverage,
+              weightedScore: optimisticWeighted,
             }
           : p
       )
     );
 
-    const likeRef = doc(db, "friendFeed", postId, "likes", u.uid);
+    const scoreRef = doc(db, "friendFeed", postId, "scores", u.uid);
+    const notifRef = doc(db, "notifications", `score_${postId}_${u.uid}`);
 
     try {
-      if (currentlyLiked) {
-        await deleteDoc(likeRef);
+      if (nextRating === null) {
+        await Promise.all([deleteDoc(scoreRef), deleteDoc(notifRef)]);
       } else {
-        await setDoc(likeRef, {
-          uid: u.uid,
-          createdAt: serverTimestamp(),
-        });
+        await setDoc(
+          scoreRef,
+          {
+            uid: u.uid,
+            score: nextRating,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
 
-        if (currentPost?.authorUid && currentPost.authorUid !== u.uid) {
-          const notifRef = doc(db, "notifications", `like_${postId}_${u.uid}`);
+        if (currentPost.authorUid && currentPost.authorUid !== u.uid) {
           await setDoc(notifRef, {
             recipientId: currentPost.authorUid,
-            type: "like",
+            type: "score",
+            scoreValue: nextRating,
             senderUid: u.uid,
             senderUsername: myUsername || auth.currentUser?.email || "Someone",
             postId,
@@ -339,24 +479,29 @@ export default function Profile() {
         }
       }
     } catch {
+      const rollbackAverage = currentCount > 0 ? currentTotal / currentCount : 0;
+      const rollbackWeighted = computeWeightedScore(rollbackAverage, currentCount, globalAverage);
       setPosts((prev) =>
         prev.map((p) =>
           p.id === postId
             ? {
                 ...p,
-                likedByMe: currentlyLiked,
-                likeCount: Math.max(0, (p.likeCount ?? 0) + (currentlyLiked ? 1 : -1)),
+                myRating: previousRating,
+                ratingCount: currentCount,
+                ratingTotal: currentTotal,
+                ratingAverage: rollbackAverage,
+                weightedScore: rollbackWeighted,
               }
             : p
         )
       );
       toast({
-        title: "Like failed",
+        title: "Rating failed",
         description: "Something went wrong. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setLikingPostIds((prev) => {
+      setRatingPostIds((prev) => {
         const next = new Set(prev);
         next.delete(postId);
         return next;
@@ -486,8 +631,8 @@ export default function Profile() {
                 <p className="text-2xl font-semibold mt-1">{loadingStats || !stats ? "..." : stats.publishedPosts}</p>
               </Card>
               <Card className="p-4 border border-border">
-                <p className="text-xs text-muted-foreground">Likes Received</p>
-                <p className="text-2xl font-semibold mt-1">{loadingStats || !stats ? "..." : stats.likesReceived}</p>
+                <p className="text-xs text-muted-foreground">Ratings Received</p>
+                <p className="text-2xl font-semibold mt-1">{loadingStats || !stats ? "..." : stats.ratingsReceived}</p>
               </Card>
               <Card className="p-4 border border-border">
                 <p className="text-xs text-muted-foreground">Friends</p>
@@ -518,9 +663,11 @@ export default function Profile() {
                     const ingredients = (p.ingredients || []) as Ingredient[];
                     const steps = (p.steps || []) as string[];
                     const postedAt = formatPostTime(p.createdAt);
-                    const likeCount = p.likeCount ?? 0;
-                    const likedByMe = !!p.likedByMe;
-                    const liking = likingPostIds.has(p.id);
+                    const ratingCount = p.ratingCount ?? 0;
+                    const ratingAverage = p.ratingAverage ?? 0;
+                    const myRating = normalizeRating(p.myRating ?? null);
+                    const ratingPending = ratingPostIds.has(p.id);
+                    const starAverage = ratingCount > 0 ? ratingAverage : 0;
 
                     return (
                       <Card key={p.id} className="p-4 border border-border">
@@ -570,21 +717,33 @@ export default function Profile() {
                           )}
                         </div>
 
-                        <div className="mt-4 flex justify-end">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="h-8 px-2"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleToggleLike(p.id);
-                            }}
-                            disabled={liking}
-                          >
-                            <ThumbsUp className={`h-4 w-4 ${likedByMe ? "fill-current text-blue-500" : ""}`} />
-                            <span className="ml-1 text-sm tabular-nums">{likeCount}</span>
-                          </Button>
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-0.5">{renderAverageStars(starAverage)}</div>
+                            <span>({ratingCount})</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1">
+                            {RATING_VALUES.map((value) => {
+                              const active = myRating === value;
+                              return (
+                                <Button
+                                  key={value}
+                                  type="button"
+                                  variant="outline"
+                                  className={`h-7 px-2 text-xs ${active ? "rating-button-active" : ""}`}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleSetRating(p.id, value);
+                                  }}
+                                  disabled={ratingPending}
+                                >
+                                  <Star className={`h-3.5 w-3.5 ${active ? "fill-current" : ""}`} />
+                                  <span className="ml-1">{value}</span>
+                                </Button>
+                              );
+                            })}
+                          </div>
                         </div>
                       </Card>
                     );
@@ -606,9 +765,7 @@ export default function Profile() {
               </div>
             ) : friends.length === 0 ? (
               <div className="rounded-xl border p-4">
-                <p className="text-sm text-muted-foreground">
-                  No friends visible.
-                </p>
+                <p className="text-sm text-muted-foreground">No friends visible.</p>
               </div>
             ) : (
               <div className="space-y-3">

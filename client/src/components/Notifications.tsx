@@ -37,10 +37,11 @@ interface FriendRequest {
   createdAt?: any;
 }
 
-interface LikeNotification {
+interface ReactionNotification {
   id: string;
   recipientId: string;
-  type: "like";
+  type: "like" | "score";
+  scoreValue?: number;
   senderUid?: string;
   senderUsername?: string;
   postId?: string;
@@ -49,9 +50,9 @@ interface LikeNotification {
 }
 
 type NotificationItem =
-  | { kind: "share"; createdAt?: any } & ShareNotification
-  | { kind: "friend"; createdAt?: any } & FriendRequest
-  | { kind: "like"; createdAt?: any } & LikeNotification;
+  | ({ kind: "share"; createdAt?: any } & ShareNotification)
+  | ({ kind: "friend"; createdAt?: any } & FriendRequest)
+  | ({ kind: "reaction"; createdAt?: any } & ReactionNotification);
 
 interface Props {
   userId?: string | null;
@@ -59,6 +60,14 @@ interface Props {
 
 const blueButtonClasses =
   "bg-blue-950 !text-white !border-blue-950 hover:!bg-blue-900 hover:!border-blue-900";
+
+function clampScore(value: unknown): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.round(n);
+  if (rounded < 1 || rounded > 5) return null;
+  return rounded;
+}
 
 export default function Notifications({ userId }: Props) {
   const [isOpen, setIsOpen] = useState(false);
@@ -71,10 +80,7 @@ export default function Notifications({ userId }: Props) {
     try {
       setLoading(true);
 
-      const sharesQ = query(
-        collection(db, "recipeShares"),
-        where("toUid", "==", userId)
-      );
+      const sharesQ = query(collection(db, "recipeShares"), where("toUid", "==", userId));
       const sharesSnap = await getDocs(sharesQ);
       const shares = sharesSnap.docs.map((docSnap) => ({
         kind: "share" as const,
@@ -94,18 +100,17 @@ export default function Notifications({ userId }: Props) {
         ...(docSnap.data() as any),
       })) as NotificationItem[];
 
-      const likesQ = query(
-        collection(db, "notifications"),
-        where("recipientId", "==", userId)
-      );
-      const likesSnap = await getDocs(likesQ);
-      const likes = likesSnap.docs.map((docSnap) => ({
-        kind: "like" as const,
-        id: docSnap.id,
-        ...(docSnap.data() as any),
-      })).filter((n: any) => n.type === "like") as NotificationItem[];
+      const reactionsQ = query(collection(db, "notifications"), where("recipientId", "==", userId));
+      const reactionsSnap = await getDocs(reactionsQ);
+      const reactions = reactionsSnap.docs
+        .map((docSnap) => ({
+          kind: "reaction" as const,
+          id: docSnap.id,
+          ...(docSnap.data() as any),
+        }))
+        .filter((n: any) => n.type === "like" || n.type === "score") as NotificationItem[];
 
-      const combined = [...friendReqs, ...shares, ...likes];
+      const combined = [...friendReqs, ...shares, ...reactions];
 
       combined.sort((a, b) => {
         const ta = (a as any).createdAt?.toMillis?.() ?? 0;
@@ -154,9 +159,7 @@ export default function Notifications({ userId }: Props) {
           variant: "destructive",
         });
         await deleteDoc(doc(db, "recipeShares", share.id));
-        setNotifications((prev) =>
-          prev.filter((n) => !(n.kind === "share" && n.id === share.id))
-        );
+        setNotifications((prev) => prev.filter((n) => !(n.kind === "share" && n.id === share.id)));
         return;
       }
 
@@ -171,9 +174,7 @@ export default function Notifications({ userId }: Props) {
       });
 
       await deleteDoc(doc(db, "recipeShares", share.id));
-      setNotifications((prev) =>
-        prev.filter((n) => !(n.kind === "share" && n.id === share.id))
-      );
+      setNotifications((prev) => prev.filter((n) => !(n.kind === "share" && n.id === share.id)));
 
       toast({
         title: "Recipe added",
@@ -192,9 +193,7 @@ export default function Notifications({ userId }: Props) {
   const handleDeclineShare = async (share: ShareNotification) => {
     try {
       await deleteDoc(doc(db, "recipeShares", share.id));
-      setNotifications((prev) =>
-        prev.filter((n) => !(n.kind === "share" && n.id === share.id))
-      );
+      setNotifications((prev) => prev.filter((n) => !(n.kind === "share" && n.id === share.id)));
     } catch (err) {
       console.error("Error declining share:", err);
       toast({
@@ -247,9 +246,7 @@ export default function Notifications({ userId }: Props) {
 
       await batch.commit();
 
-      setNotifications((prev) =>
-        prev.filter((n) => !(n.kind === "friend" && n.id === req.id))
-      );
+      setNotifications((prev) => prev.filter((n) => !(n.kind === "friend" && n.id === req.id)));
 
       toast({
         title: "Friend added",
@@ -275,9 +272,7 @@ export default function Notifications({ userId }: Props) {
         respondedAt: serverTimestamp(),
       });
 
-      setNotifications((prev) =>
-        prev.filter((n) => !(n.kind === "friend" && n.id === req.id))
-      );
+      setNotifications((prev) => prev.filter((n) => !(n.kind === "friend" && n.id === req.id)));
     } catch (err) {
       console.error("Error declining friend request:", err);
       toast({
@@ -310,9 +305,7 @@ export default function Notifications({ userId }: Props) {
             {loading ? (
               <p className="text-xs text-muted-foreground">Loading...</p>
             ) : notifications.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No new notifications.
-              </p>
+              <p className="text-xs text-muted-foreground">No new notifications.</p>
             ) : (
               <div className="space-y-3">
                 {notifications.map((item) => {
@@ -324,29 +317,18 @@ export default function Notifications({ userId }: Props) {
                         className="border border-border rounded-md p-3 text-sm"
                       >
                         <p className="text-sm mb-3">
-                          <span className="font-semibold">{n.fromUsername}</span>{" "}
-                          would like to share a recipe
+                          <span className="font-semibold">{n.fromUsername}</span> would like to share a recipe
                         </p>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-base font-semibold">
-                            {n.recipeTitle}
-                          </span>
+                          <span className="text-base font-semibold">{n.recipeTitle}</span>
 
                           <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleDeclineShare(n)}
-                            >
+                            <Button size="sm" variant="outline" onClick={() => handleDeclineShare(n)}>
                               Decline
                             </Button>
 
-                            <Button
-                              size="sm"
-                              className={blueButtonClasses}
-                              onClick={() => handleAcceptShare(n)}
-                            >
+                            <Button size="sm" className={blueButtonClasses} onClick={() => handleAcceptShare(n)}>
                               Accept
                             </Button>
                           </div>
@@ -355,19 +337,30 @@ export default function Notifications({ userId }: Props) {
                     );
                   }
 
-                  if (item.kind === "like") {
-                    const n = item as LikeNotification & { kind: "like" };
+                  if (item.kind === "reaction") {
+                    const n = item as ReactionNotification & { kind: "reaction" };
                     const fromName = n.senderUsername || "Someone";
                     const recipeTitle = n.recipeTitle || "your recipe";
+                    const scoreValue = clampScore(n.scoreValue);
 
                     return (
                       <div
-                        key={`like-${n.id}`}
+                        key={`reaction-${n.id}`}
                         className="border border-border rounded-md p-3 text-sm"
                       >
                         <p className="text-sm">
-                          <span className="font-semibold">{fromName}</span> liked your recipe:{" "}
-                          <span className="font-semibold">{recipeTitle}</span>
+                          {n.type === "score" ? (
+                            <>
+                              <span className="font-semibold">{fromName}</span> rated your recipe{" "}
+                              <span className="font-semibold">{scoreValue ?? 0}/5</span>:{" "}
+                              <span className="font-semibold">{recipeTitle}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-semibold">{fromName}</span> liked your recipe:{" "}
+                              <span className="font-semibold">{recipeTitle}</span>
+                            </>
+                          )}
                         </p>
                       </div>
                     );
@@ -380,24 +373,15 @@ export default function Notifications({ userId }: Props) {
                       className="border border-border rounded-md p-3 text-sm"
                     >
                       <p className="text-sm mb-3">
-                        <span className="font-semibold">{r.fromUsername}</span>{" "}
-                        sent you a friend request
+                        <span className="font-semibold">{r.fromUsername}</span> sent you a friend request
                       </p>
 
                       <div className="flex items-center justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDeclineFriend(r)}
-                        >
+                        <Button size="sm" variant="outline" onClick={() => handleDeclineFriend(r)}>
                           Decline
                         </Button>
 
-                        <Button
-                          size="sm"
-                          className={blueButtonClasses}
-                          onClick={() => handleAcceptFriend(r)}
-                        >
+                        <Button size="sm" className={blueButtonClasses} onClick={() => handleAcceptFriend(r)}>
                           Accept
                         </Button>
                       </div>
