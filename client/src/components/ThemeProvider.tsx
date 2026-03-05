@@ -1,31 +1,34 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "light" | "dark";
+type Theme = "light" | "dark" | "navy" | "red";
 
 type ThemeContextType = {
   theme: Theme;
   toggleTheme: () => void;
+  setTheme: (theme: Theme) => void;
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
-
-  /*useEffect(() => {
-    const stored = localStorage.getItem("digiCook_theme") as Theme;
-    if (stored) {
-      setTheme(stored);
-    }
-  }, []);*/
+  const [theme, setTheme] = useState<Theme>(() => {
+    const stored = localStorage.getItem("digiCook_theme");
+    return stored === "light" ||
+      stored === "dark" ||
+      stored === "navy" ||
+      stored === "red"
+      ? stored
+      : "dark";
+  });
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
+    root.classList.remove("dark", "theme-navy", "theme-red");
+
+    if (theme === "dark") root.classList.add("dark");
+    if (theme === "navy") root.classList.add("theme-navy");
+    if (theme === "red") root.classList.add("theme-red");
+
     localStorage.setItem("digiCook_theme", theme);
   }, [theme]);
 
@@ -34,7 +37,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );

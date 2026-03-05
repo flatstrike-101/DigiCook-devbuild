@@ -5,12 +5,12 @@ import { RecipeGrid } from "@/components/RecipeGrid";
 import { db } from "../../firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { Recipe } from "@shared/schema";
+import { generatedBrowseRecipes } from "@/lib/generatedBrowseRecipes";
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [publicRecipes, setPublicRecipes] = useState<Recipe[]>([]);
 
-  // 🔥 Fetch public recipes from Firestore
   useEffect(() => {
     const fetchPublicRecipes = async () => {
       try {
@@ -19,16 +19,18 @@ export default function Home() {
           id: doc.id,
           ...doc.data(),
         })) as Recipe[];
-        setPublicRecipes(data);
+
+        // Keep Firestore recipes and append 100 generated browse recipes.
+        setPublicRecipes([...data, ...generatedBrowseRecipes]);
       } catch (error) {
-        console.error("❌ Error loading public recipes:", error);
+        console.error("Error loading public recipes:", error);
+        setPublicRecipes(generatedBrowseRecipes);
       }
     };
 
     fetchPublicRecipes();
   }, []);
 
-  // 🔍 Filter recipes by search
   const filteredRecipes = useMemo(() => {
     return publicRecipes.filter((recipe) => {
       const matchesSearch =
@@ -47,9 +49,7 @@ export default function Home() {
         {filteredRecipes.length > 0 ? (
           <RecipeGrid recipes={filteredRecipes} />
         ) : (
-          <div className="text-center text-white text-lg py-12">
-            No recipes found.
-          </div>
+          <div className="text-center text-white text-lg py-12">No recipes found.</div>
         )}
       </div>
     </div>

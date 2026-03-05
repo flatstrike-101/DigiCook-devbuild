@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
 import { auth, db } from "../../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
@@ -11,6 +12,7 @@ import {
 } from "firebase/auth";
 
 import { updateUsername } from "@/utils/updateUsername";
+import { useTheme } from "@/components/ThemeProvider";
 
 interface SettingsModalProps {
   show: boolean;
@@ -20,6 +22,7 @@ interface SettingsModalProps {
 type Mode = "main" | "changeUsername" | "changeEmail" | "changePassword";
 
 export default function SettingsModal({ show, onClose }: SettingsModalProps) {
+  const { theme, setTheme } = useTheme();
   const [mode, setMode] = useState<Mode>("main");
 
   const [username, setUsername] = useState("");
@@ -40,6 +43,8 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState("");
+  const [showProfileStats, setShowProfileStats] = useState(true);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
 
   useEffect(() => {
     if (!show) return;
@@ -56,6 +61,9 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
       if (snap.exists()) {
         const data = snap.data();
         setUsername(data.username || "");
+        setShowProfileStats(data.showProfileStats !== false);
+      } else {
+        setShowProfileStats(true);
       }
     };
 
@@ -180,6 +188,29 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
     }
   };
 
+  const handleToggleProfileStats = async (checked: boolean) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        alert("Not signed in.");
+        return;
+      }
+
+      setSavingPrivacy(true);
+      setShowProfileStats(checked);
+      await updateDoc(doc(db, "users", user.uid), {
+        showProfileStats: checked,
+      });
+    } catch (err) {
+      console.error(err);
+      // Revert optimistic toggle if save fails.
+      setShowProfileStats((prev) => !prev);
+      alert("Could not update privacy setting. Please try again.");
+    } finally {
+      setSavingPrivacy(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[20000] flex items-center justify-center">
       <div
@@ -263,10 +294,42 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
             </div>
 
             <div className="space-y-2">
-              <p className="text-lg font-semibold">Select a Theme (WIP)</p>
-              <select className="w-full p-3 border rounded-md bg-background text-base">
-                <option disabled>Select a theme…</option>
+              <p className="text-lg font-semibold">Select a Theme</p>
+              <select
+                className="w-full p-3 border rounded-md bg-background text-base"
+                value={theme}
+                onChange={(e) =>
+                  setTheme(
+                    e.target.value as
+                      | "light"
+                      | "dark"
+                      | "navy"
+                      | "red"
+                  )
+                }
+              >
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+                <option value="navy">Navy</option>
+                <option value="red">Red</option>
               </select>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border p-4">
+              <div className="pr-4">
+                <p className="text-lg font-semibold">Show Profile Statistics</p>
+                <p className="text-sm text-muted-foreground">
+                  Allow others to see your public account stats on your profile page.
+                </p>
+              </div>
+
+              <Switch
+                className="profile-stats-switch"
+                checked={showProfileStats}
+                disabled={savingPrivacy}
+                onCheckedChange={handleToggleProfileStats}
+                aria-label="Toggle profile stats visibility"
+              />
             </div>
           </div>
         )}
@@ -419,3 +482,4 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
     </div>
   );
 }
+

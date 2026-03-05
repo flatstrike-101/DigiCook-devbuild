@@ -7,6 +7,7 @@ import { ShareDialog } from "@/components/ShareDialog";
 import { db, auth } from "../../firebase";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { generatedBrowseRecipes } from "@/lib/generatedBrowseRecipes";
 
 interface Ingredient {
   name: string;
@@ -21,7 +22,7 @@ interface Recipe {
   ingredients: Ingredient[];
   steps: string[];
   imageUrl?: string;
-  cookTime?: string;
+  cookTime?: number | string;
   nutrition?: {
     calories?: number;
     protein?: number;
@@ -52,7 +53,8 @@ export default function RecipeDetail() {
         if (snap.exists()) {
           setRecipe({ id: snap.id, ...snap.data() } as Recipe);
         } else {
-          setRecipe(null);
+          const generated = generatedBrowseRecipes.find((r) => r.id === params.id);
+          setRecipe(generated ? ({ ...generated } as unknown as Recipe) : null);
         }
       } catch (err) {
         console.error("❌ Error loading recipe:", err);

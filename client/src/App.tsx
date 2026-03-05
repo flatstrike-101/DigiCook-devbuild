@@ -12,6 +12,7 @@ import MyRecipes from "@/pages/MyRecipes";
 import AddRecipe from "@/pages/AddRecipe";
 import EditRecipe from "@/pages/EditRecipe";
 import FriendActivity from "@/pages/FriendActivity";
+import Profile from "@/pages/Profile";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotFound from "@/pages/not-found";
@@ -35,6 +36,7 @@ const EditRecipeProtected = () => <ProtectedRoute component={EditRecipe} />;
 const FriendActivityProtected = () => (
   <ProtectedRoute component={FriendActivity} />
 );
+const ProfileProtected = () => <ProtectedRoute component={Profile} />;
 
 function Router() {
   return (
@@ -45,6 +47,7 @@ function Router() {
       <Route path="/add-recipe" component={AddRecipeProtected} />
       <Route path="/edit-recipe/:id" component={EditRecipeProtected} />
       <Route path="/friends" component={FriendActivityProtected} />
+      <Route path="/profile/:uid" component={ProfileProtected} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route component={NotFound} />

@@ -37,9 +37,21 @@ interface FriendRequest {
   createdAt?: any;
 }
 
+interface LikeNotification {
+  id: string;
+  recipientId: string;
+  type: "like";
+  senderUid?: string;
+  senderUsername?: string;
+  postId?: string;
+  recipeTitle?: string;
+  createdAt?: any;
+}
+
 type NotificationItem =
   | { kind: "share"; createdAt?: any } & ShareNotification
-  | { kind: "friend"; createdAt?: any } & FriendRequest;
+  | { kind: "friend"; createdAt?: any } & FriendRequest
+  | { kind: "like"; createdAt?: any } & LikeNotification;
 
 interface Props {
   userId?: string | null;
@@ -82,7 +94,18 @@ export default function Notifications({ userId }: Props) {
         ...(docSnap.data() as any),
       })) as NotificationItem[];
 
-      const combined = [...friendReqs, ...shares];
+      const likesQ = query(
+        collection(db, "notifications"),
+        where("recipientId", "==", userId)
+      );
+      const likesSnap = await getDocs(likesQ);
+      const likes = likesSnap.docs.map((docSnap) => ({
+        kind: "like" as const,
+        id: docSnap.id,
+        ...(docSnap.data() as any),
+      })).filter((n: any) => n.type === "like") as NotificationItem[];
+
+      const combined = [...friendReqs, ...shares, ...likes];
 
       combined.sort((a, b) => {
         const ta = (a as any).createdAt?.toMillis?.() ?? 0;
@@ -328,6 +351,24 @@ export default function Notifications({ userId }: Props) {
                             </Button>
                           </div>
                         </div>
+                      </div>
+                    );
+                  }
+
+                  if (item.kind === "like") {
+                    const n = item as LikeNotification & { kind: "like" };
+                    const fromName = n.senderUsername || "Someone";
+                    const recipeTitle = n.recipeTitle || "your recipe";
+
+                    return (
+                      <div
+                        key={`like-${n.id}`}
+                        className="border border-border rounded-md p-3 text-sm"
+                      >
+                        <p className="text-sm">
+                          <span className="font-semibold">{fromName}</span> liked your recipe:{" "}
+                          <span className="font-semibold">{recipeTitle}</span>
+                        </p>
                       </div>
                     );
                   }

@@ -27,6 +27,9 @@ export default function AddFriendModal({
     await onSend(username);
   };
 
+  const blueButtonClasses =
+    "bg-blue-950 !text-white !border-blue-950 hover:!bg-blue-900 hover:!border-blue-900";
+
   return (
     <AnimatePresence>
       {show && (
@@ -70,8 +73,12 @@ export default function AddFriendModal({
               <Button variant="secondary" onClick={onClose} disabled={!!loading}>
                 Cancel
               </Button>
-              <Button onClick={submit} disabled={!!loading}>
-                Send Request
+              <Button
+                onClick={submit}
+                disabled={!!loading}
+                className={blueButtonClasses}
+              >
+                {loading ? "Sending..." : "Send Request"}
               </Button>
             </div>
           </motion.div>
