@@ -9,7 +9,7 @@ const firebaseConfig = {
   projectId: "digicook-2ecbe",
   storageBucket: "digicook-2ecbe.firebasestorage.app",
   messagingSenderId: "21145060975",
-  appId: "1:21145060975:web:d4ada2a7adc5235c026f9a"
+  appId: "1:21145060975:web:d4ada2a7adc5235c026f9a",
 };
 
 const app = initializeApp(firebaseConfig);
@@ -17,4 +17,5 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-console.log("✅ Firebase connected:", app.name);
+
+console.log("Firebase connected:", app.name, "Storage bucket:", firebaseConfig.storageBucket);

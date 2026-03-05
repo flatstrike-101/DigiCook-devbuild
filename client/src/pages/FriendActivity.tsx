@@ -20,9 +20,11 @@ import {
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Star, StarHalf, X } from "lucide-react";
 import AddFriendModal from "@/components/AddFriendModal";
+import UserAvatar from "@/components/UserAvatar";
 
 type FriendDoc = {
   friendUid: string;
@@ -37,6 +39,13 @@ type FriendDisplay = {
 };
 
 type Ingredient = { name: string; amount: string; unit?: string };
+type FeedComment = {
+  id: string;
+  uid?: string;
+  username?: string;
+  text?: string;
+  createdAt?: any;
+};
 
 type FeedPost = {
   id: string;
@@ -54,6 +63,8 @@ type FeedPost = {
   ratingTotal?: number;
   weightedScore?: number;
   myRating?: number | null;
+  commentCount?: number;
+  recentComments?: FeedComment[];
 };
 
 const blueButtonClasses =
@@ -71,6 +82,12 @@ function chunk<T>(arr: T[], size: number) {
 
 function formatPostTime(createdAt: any) {
   const date = createdAt?.toDate?.();
+  if (!date) return "just now";
+  return formatDistanceToNow(date, { addSuffix: true });
+}
+
+function formatCommentTime(createdAt: any) {
+  const date = createdAt?.toDate?.() ?? (createdAt instanceof Date ? createdAt : null);
   if (!date) return "just now";
   return formatDistanceToNow(date, { addSuffix: true });
 }
@@ -161,6 +178,7 @@ export default function FriendActivity() {
   const [userUid, setUserUid] = useState<string | null>(null);
   const [myUsername, setMyUsername] = useState<string>("");
   const [myFullName, setMyFullName] = useState<string>("You");
+  const [myProfileImageUrl, setMyProfileImageUrl] = useState<string>("");
 
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [sending, setSending] = useState(false);
@@ -174,6 +192,8 @@ export default function FriendActivity() {
   const [feed, setFeed] = useState<FeedPost[]>([]);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [ratingPostIds, setRatingPostIds] = useState<Set<string>>(new Set());
+  const [commentingPostIds, setCommentingPostIds] = useState<Set<string>>(new Set());
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
 
   const [copyingId, setCopyingId] = useState<string | null>(null);
 
@@ -198,13 +218,16 @@ export default function FriendActivity() {
           setMyFullName(
             data.fullName || data.name || `${data.firstName || ""} ${data.lastName || ""}`.trim() || "You"
           );
+          setMyProfileImageUrl(data.profileImageUrl || data.photoURL || u.photoURL || "");
         } else {
           setMyUsername(u.email || "");
           setMyFullName("You");
+          setMyProfileImageUrl(u.photoURL || "");
         }
       } catch {
         setMyUsername(u.email || "");
         setMyFullName("You");
+        setMyProfileImageUrl(u.photoURL || "");
       }
     };
 
@@ -298,11 +321,15 @@ export default function FriendActivity() {
           const ratingsColRef = collection(db, "friendFeed", post.id, "scores");
           const myRatingRef = doc(db, "friendFeed", post.id, "scores", u.uid);
           const legacyLikesColRef = collection(db, "friendFeed", post.id, "likes");
+          const commentsColRef = collection(db, "friendFeed", post.id, "comments");
+          const recentCommentsQ = query(commentsColRef, orderBy("createdAt", "desc"), limit(3));
 
-          const [ratingsSnap, myRatingSnap, legacyLikesSnap] = await Promise.all([
+          const [ratingsSnap, myRatingSnap, legacyLikesSnap, commentsCountSnap, recentCommentsSnap] = await Promise.all([
             getDocs(ratingsColRef),
             getDoc(myRatingRef),
             getCountFromServer(legacyLikesColRef),
+            getCountFromServer(commentsColRef),
+            getDocs(recentCommentsQ),
           ]);
 
           const summary = summarizeRatings(
@@ -316,6 +343,8 @@ export default function FriendActivity() {
             ratingTotal: summary.total,
             ratingAverage: summary.average,
             myRating: normalizeRating((myRatingSnap.data() as any)?.score),
+            commentCount: commentsCountSnap.data().count ?? 0,
+            recentComments: recentCommentsSnap.docs.map((snap) => ({ id: snap.id, ...(snap.data() as any) })),
           };
         })
       );
@@ -336,6 +365,100 @@ export default function FriendActivity() {
       });
     } finally {
       setLoadingFeed(false);
+    }
+  };
+
+  const handleAddComment = async (postId: string) => {
+    const u = auth.currentUser;
+    if (!u) {
+      toast({
+        title: "Not signed in",
+        description: "You must be signed in to comment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const text = (commentDrafts[postId] || "").trim();
+    if (!text) return;
+    if (commentingPostIds.has(postId)) return;
+
+    const tempId = `temp-${Date.now()}`;
+    const optimisticComment: FeedComment = {
+      id: tempId,
+      uid: u.uid,
+      username: myUsername || auth.currentUser?.email || "You",
+      text,
+      createdAt: new Date(),
+    };
+
+    const previousPost = feed.find((p) => p.id === postId);
+
+    setCommentingPostIds((prev) => {
+      const next = new Set(prev);
+      next.add(postId);
+      return next;
+    });
+    setCommentDrafts((prev) => ({ ...prev, [postId]: "" }));
+    setFeed((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              commentCount: (p.commentCount ?? 0) + 1,
+              recentComments: [optimisticComment, ...(p.recentComments ?? [])].slice(0, 3),
+            }
+          : p
+      )
+    );
+
+    try {
+      await addDoc(collection(db, "friendFeed", postId, "comments"), {
+        uid: u.uid,
+        username: myUsername || auth.currentUser?.email || "Someone",
+        text,
+        createdAt: serverTimestamp(),
+      });
+      const commentsColRef = collection(db, "friendFeed", postId, "comments");
+      const [commentsCountSnap, recentCommentsSnap] = await Promise.all([
+        getCountFromServer(commentsColRef),
+        getDocs(query(commentsColRef, orderBy("createdAt", "desc"), limit(3))),
+      ]);
+      setFeed((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                commentCount: commentsCountSnap.data().count ?? p.commentCount ?? 0,
+                recentComments: recentCommentsSnap.docs.map((snap) => ({ id: snap.id, ...(snap.data() as any) })),
+              }
+            : p
+        )
+      );
+    } catch {
+      setCommentDrafts((prev) => ({ ...prev, [postId]: text }));
+      setFeed((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                commentCount: previousPost?.commentCount ?? p.commentCount ?? 0,
+                recentComments: previousPost?.recentComments ?? p.recentComments ?? [],
+              }
+            : p
+        )
+      );
+      toast({
+        title: "Comment failed",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCommentingPostIds((prev) => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
     }
   };
 
@@ -711,6 +834,10 @@ export default function FriendActivity() {
                     const myRating = normalizeRating(p.myRating ?? null);
                     const ratingPending = ratingPostIds.has(p.id);
                     const starAverage = ratingCount > 0 ? ratingAverage : 0;
+                    const commentCount = p.commentCount ?? 0;
+                    const recentComments = p.recentComments ?? [];
+                    const draft = commentDrafts[p.id] ?? "";
+                    const commenting = commentingPostIds.has(p.id);
 
                     return (
                       <Card key={p.id} className="p-4 border border-border">
@@ -794,6 +921,50 @@ export default function FriendActivity() {
                             })}
                           </div>
                         </div>
+
+                        <div className="mt-4 border-t border-border pt-3">
+                          <p className="text-sm font-semibold mb-2">Comments ({commentCount})</p>
+                          {recentComments.length === 0 ? (
+                            <p className="text-sm text-muted-foreground mb-2">No comments yet.</p>
+                          ) : (
+                            <div className="space-y-2 mb-2">
+                              {recentComments.map((c) => (
+                                <div key={c.id} className="text-sm">
+                                  <span className="font-semibold">@{c.username || "unknown"}</span>{" "}
+                                  <span className="text-muted-foreground text-xs">{formatCommentTime(c.createdAt)}</span>
+                                  <p>{c.text}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={draft}
+                              placeholder="Write a comment..."
+                              onChange={(e) =>
+                                setCommentDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))
+                              }
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              className={blueButtonClasses}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleAddComment(p.id);
+                              }}
+                              disabled={commenting || !draft.trim()}
+                            >
+                              {commenting ? "Posting..." : "Post"}
+                            </Button>
+                          </div>
+                        </div>
                       </Card>
                     );
                   })}
@@ -807,10 +978,19 @@ export default function FriendActivity() {
               onClick={() => userUid && setLocation(`/profile/${userUid}`)}
               className="cursor-pointer p-4 hover:shadow-lg transition-shadow border border-border mb-6"
             >
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground mb-1">Your Profile</p>
-                <p className="font-semibold truncate">{myFullName}</p>
-                <p className="text-sm text-muted-foreground truncate">@{myUsername || "you"}</p>
+              <div className="flex items-center gap-3">
+                <UserAvatar
+                  photoURL={myProfileImageUrl}
+                  username={myUsername}
+                  fullName={myFullName}
+                  className="h-10 w-10"
+                  fallbackClassName="text-sm font-semibold"
+                />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground mb-1">Your Profile</p>
+                  <p className="font-semibold truncate">{myFullName}</p>
+                  <p className="text-sm text-muted-foreground truncate">@{myUsername || "you"}</p>
+                </div>
               </div>
             </Card>
 

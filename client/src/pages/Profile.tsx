@@ -20,9 +20,18 @@ import {
 } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import UserAvatar from "@/components/UserAvatar";
 
 type Ingredient = { name: string; amount: string; unit?: string };
+type FeedComment = {
+  id: string;
+  uid?: string;
+  username?: string;
+  text?: string;
+  createdAt?: any;
+};
 
 type FriendDisplay = {
   uid: string;
@@ -46,12 +55,15 @@ type FeedPost = {
   ratingTotal?: number;
   weightedScore?: number;
   myRating?: number | null;
+  commentCount?: number;
+  recentComments?: FeedComment[];
 };
 
 type ProfileData = {
   uid: string;
   username: string;
   fullName: string;
+  profileImageUrl?: string;
   showProfileStats: boolean;
 };
 
@@ -68,6 +80,12 @@ const DEFAULT_GLOBAL_AVERAGE = 4;
 
 function formatPostTime(createdAt: any) {
   const date = createdAt?.toDate?.();
+  if (!date) return "just now";
+  return formatDistanceToNow(date, { addSuffix: true });
+}
+
+function formatCommentTime(createdAt: any) {
+  const date = createdAt?.toDate?.() ?? (createdAt instanceof Date ? createdAt : null);
   if (!date) return "just now";
   return formatDistanceToNow(date, { addSuffix: true });
 }
@@ -166,6 +184,8 @@ export default function Profile() {
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [myUsername, setMyUsername] = useState("");
   const [ratingPostIds, setRatingPostIds] = useState<Set<string>>(new Set());
+  const [commentingPostIds, setCommentingPostIds] = useState<Set<string>>(new Set());
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [copyingId, setCopyingId] = useState<string | null>(null);
 
   const blueButtonClasses =
@@ -228,6 +248,7 @@ export default function Profile() {
           username: data.displayUsername || data.username || data.userName || "unknown",
           fullName:
             data.fullName || data.name || `${data.firstName || ""} ${data.lastName || ""}`.trim() || "Unknown",
+          profileImageUrl: data.profileImageUrl || data.photoURL || "",
           showProfileStats: data.showProfileStats !== false,
         });
 
@@ -247,10 +268,14 @@ export default function Profile() {
               const ratingsColRef = collection(db, "friendFeed", post.id, "scores");
               const myRatingRef = doc(db, "friendFeed", post.id, "scores", currentUid);
               const legacyLikesColRef = collection(db, "friendFeed", post.id, "likes");
-              const [ratingsSnap, myRatingSnap, legacyLikesSnap] = await Promise.all([
+              const commentsColRef = collection(db, "friendFeed", post.id, "comments");
+              const recentCommentsQ = query(commentsColRef, orderBy("createdAt", "desc"), limit(3));
+              const [ratingsSnap, myRatingSnap, legacyLikesSnap, commentsCountSnap, recentCommentsSnap] = await Promise.all([
                 getDocs(ratingsColRef),
                 getDoc(myRatingRef),
                 getCountFromServer(legacyLikesColRef),
+                getCountFromServer(commentsColRef),
+                getDocs(recentCommentsQ),
               ]);
 
               const summary = summarizeRatings(
@@ -264,6 +289,8 @@ export default function Profile() {
                 ratingTotal: summary.total,
                 ratingAverage: summary.average,
                 myRating: normalizeRating((myRatingSnap.data() as any)?.score),
+                commentCount: commentsCountSnap.data().count ?? 0,
+                recentComments: recentCommentsSnap.docs.map((snap) => ({ id: snap.id, ...(snap.data() as any) })),
               };
             })
           );
@@ -509,6 +536,98 @@ export default function Profile() {
     }
   };
 
+  const handleAddComment = async (postId: string) => {
+    const u = auth.currentUser;
+    if (!u) {
+      toast({
+        title: "Not signed in",
+        description: "You must be signed in to comment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const text = (commentDrafts[postId] || "").trim();
+    if (!text) return;
+    if (commentingPostIds.has(postId)) return;
+
+    const optimisticComment: FeedComment = {
+      id: `temp-${Date.now()}`,
+      uid: u.uid,
+      username: myUsername || auth.currentUser?.email || "You",
+      text,
+      createdAt: new Date(),
+    };
+    const previousPost = posts.find((p) => p.id === postId);
+
+    setCommentingPostIds((prev) => {
+      const next = new Set(prev);
+      next.add(postId);
+      return next;
+    });
+    setCommentDrafts((prev) => ({ ...prev, [postId]: "" }));
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              commentCount: (p.commentCount ?? 0) + 1,
+              recentComments: [optimisticComment, ...(p.recentComments ?? [])].slice(0, 3),
+            }
+          : p
+      )
+    );
+
+    try {
+      await addDoc(collection(db, "friendFeed", postId, "comments"), {
+        uid: u.uid,
+        username: myUsername || auth.currentUser?.email || "Someone",
+        text,
+        createdAt: serverTimestamp(),
+      });
+      const commentsColRef = collection(db, "friendFeed", postId, "comments");
+      const [commentsCountSnap, recentCommentsSnap] = await Promise.all([
+        getCountFromServer(commentsColRef),
+        getDocs(query(commentsColRef, orderBy("createdAt", "desc"), limit(3))),
+      ]);
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                commentCount: commentsCountSnap.data().count ?? p.commentCount ?? 0,
+                recentComments: recentCommentsSnap.docs.map((snap) => ({ id: snap.id, ...(snap.data() as any) })),
+              }
+            : p
+        )
+      );
+    } catch {
+      setCommentDrafts((prev) => ({ ...prev, [postId]: text }));
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                commentCount: previousPost?.commentCount ?? p.commentCount ?? 0,
+                recentComments: previousPost?.recentComments ?? p.recentComments ?? [],
+              }
+            : p
+        )
+      );
+      toast({
+        title: "Comment failed",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCommentingPostIds((prev) => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
+    }
+  };
+
   const handleCopyToMyRecipes = async (post: FeedPost) => {
     const u = auth.currentUser;
     if (!u) {
@@ -611,8 +730,19 @@ export default function Profile() {
             </div>
           ) : (
             <div>
-              <h1 className="font-serif text-4xl font-bold mb-2">{profile.fullName}</h1>
-              <p className="text-muted-foreground">@{profile.username}</p>
+              <div className="flex items-center gap-3">
+                <UserAvatar
+                  photoURL={profile.profileImageUrl}
+                  username={profile.username}
+                  fullName={profile.fullName}
+                  className="h-14 w-14"
+                  fallbackClassName="text-lg font-semibold"
+                />
+                <div>
+                  <h1 className="font-serif text-4xl font-bold mb-2">{profile.fullName}</h1>
+                  <p className="text-muted-foreground">@{profile.username}</p>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -668,6 +798,10 @@ export default function Profile() {
                     const myRating = normalizeRating(p.myRating ?? null);
                     const ratingPending = ratingPostIds.has(p.id);
                     const starAverage = ratingCount > 0 ? ratingAverage : 0;
+                    const commentCount = p.commentCount ?? 0;
+                    const recentComments = p.recentComments ?? [];
+                    const draft = commentDrafts[p.id] ?? "";
+                    const commenting = commentingPostIds.has(p.id);
 
                     return (
                       <Card key={p.id} className="p-4 border border-border">
@@ -743,6 +877,50 @@ export default function Profile() {
                                 </Button>
                               );
                             })}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 border-t border-border pt-3">
+                          <p className="text-sm font-semibold mb-2">Comments ({commentCount})</p>
+                          {recentComments.length === 0 ? (
+                            <p className="text-sm text-muted-foreground mb-2">No comments yet.</p>
+                          ) : (
+                            <div className="space-y-2 mb-2">
+                              {recentComments.map((c) => (
+                                <div key={c.id} className="text-sm">
+                                  <span className="font-semibold">@{c.username || "unknown"}</span>{" "}
+                                  <span className="text-muted-foreground text-xs">{formatCommentTime(c.createdAt)}</span>
+                                  <p>{c.text}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={draft}
+                              placeholder="Write a comment..."
+                              onChange={(e) =>
+                                setCommentDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))
+                              }
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              className={blueButtonClasses}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleAddComment(p.id);
+                              }}
+                              disabled={commenting || !draft.trim()}
+                            >
+                              {commenting ? "Posting..." : "Post"}
+                            </Button>
                           </div>
                         </div>
                       </Card>
