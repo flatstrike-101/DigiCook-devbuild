@@ -1,51 +1,44 @@
 import { auth, db } from "../../firebase";
-import {
-  doc,
-  getDoc,
-  deleteDoc,
-  setDoc,
-  updateDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-} from "firebase/firestore";
+import { doc, getDoc, runTransaction } from "firebase/firestore";
 
-export async function updateUsername(newUsername: string) {
+function normalizeUsername(raw: string) {
+  return raw.trim().replace(/^@/, "").toLowerCase();
+}
+
+export async function updateUsername(newUsernameRaw: string) {
   const user = auth.currentUser;
-  if (!user) throw new Error("Not logged in.");
+  if (!user) throw new Error("Not signed in.");
 
-  const uid = user.uid;
+  const newUsername = normalizeUsername(newUsernameRaw);
+  if (!newUsername) throw new Error("Username cannot be empty.");
 
-  // --- 1. Check if new username exists ---
-  const usernameRef = doc(db, "usernames", newUsername);
-  const usernameSnap = await getDoc(usernameRef);
+  const userRef = doc(db, "users", user.uid);
 
-  if (usernameSnap.exists()) {
-    throw new Error("Username is already taken.");
-  }
+  await runTransaction(db, async (tx) => {
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists()) throw new Error("User profile not found.");
 
-  // --- 2. Fetch user's current username ---
-  const userRef = doc(db, "users", uid);
-  const userSnap = await getDoc(userRef);
+    const currentData = userSnap.data() as any;
+    const oldUsername = normalizeUsername(currentData.displayUsername || currentData.username || "");
 
-  if (!userSnap.exists()) {
-    throw new Error("User record not found.");
-  }
+    const newUsernameRef = doc(db, "usernames", newUsername);
+    const usernameSnap = await tx.get(newUsernameRef);
+    if (usernameSnap.exists() && usernameSnap.data()?.uid !== user.uid) {
+      throw new Error("Username is already taken.");
+    }
 
-  const oldUsername = userSnap.data().username;
+    if (oldUsername && oldUsername !== newUsername) {
+      const oldUsernameRef = doc(db, "usernames", oldUsername);
+      const oldSnap = await tx.get(oldUsernameRef);
+      if (oldSnap.exists() && oldSnap.data()?.uid === user.uid) {
+        tx.delete(oldUsernameRef);
+      }
+    }
 
-  // --- 3. Delete the old username index ---
-  if (oldUsername) {
-    const oldRef = doc(db, "usernames", oldUsername);
-    await deleteDoc(oldRef);
-  }
-
-  // --- 4. Create new username index ---
-  await setDoc(doc(db, "usernames", newUsername), { uid });
-
-  // --- 5. Update user's profile ---
-  await updateDoc(userRef, { username: newUsername });
-
-  return true;
+    tx.set(newUsernameRef, { uid: user.uid });
+    tx.update(userRef, {
+      displayUsername: newUsername,
+      username: newUsername,
+    });
+  });
 }

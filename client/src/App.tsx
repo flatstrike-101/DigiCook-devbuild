@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ComponentType, useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -13,30 +13,28 @@ import AddRecipe from "@/pages/AddRecipe";
 import EditRecipe from "@/pages/EditRecipe";
 import FriendActivity from "@/pages/FriendActivity";
 import Profile from "@/pages/Profile";
+import Assistant from "@/pages/Assistant";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotFound from "@/pages/not-found";
 import SettingsModal from "@/components/SettingsModal";
 import { auth } from "../firebase";
 
-function ProtectedRoute({ component: Component }) {
+function ProtectedRoute({ component: Component }: { component: ComponentType }) {
   const [, setLocation] = useLocation();
-
   if (!auth.currentUser) {
     setLocation("/login");
     return null;
   }
-
   return <Component />;
 }
 
 const MyRecipesProtected = () => <ProtectedRoute component={MyRecipes} />;
 const AddRecipeProtected = () => <ProtectedRoute component={AddRecipe} />;
 const EditRecipeProtected = () => <ProtectedRoute component={EditRecipe} />;
-const FriendActivityProtected = () => (
-  <ProtectedRoute component={FriendActivity} />
-);
+const FriendActivityProtected = () => <ProtectedRoute component={FriendActivity} />;
 const ProfileProtected = () => <ProtectedRoute component={Profile} />;
+const AssistantProtected = () => <ProtectedRoute component={Assistant} />;
 
 function Router() {
   return (
@@ -48,6 +46,7 @@ function Router() {
       <Route path="/edit-recipe/:id" component={EditRecipeProtected} />
       <Route path="/friends" component={FriendActivityProtected} />
       <Route path="/profile/:uid" component={ProfileProtected} />
+      <Route path="/assistant" component={AssistantProtected} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route component={NotFound} />
@@ -67,10 +66,7 @@ function App() {
             <main className="flex-1">
               <Router />
             </main>
-            <SettingsModal
-              show={showSettings}
-              onClose={() => setShowSettings(false)}
-            />
+            <SettingsModal show={showSettings} onClose={() => setShowSettings(false)} />
           </div>
           <Toaster />
         </ThemeProvider>

@@ -72,6 +72,8 @@ type ProfileStats = {
   publishedPosts: number;
   friendsCount: number;
   ratingsReceived: number;
+  accountRatingAverage: number;
+  accountRatingCount: number;
 };
 
 const RATING_VALUES = [1, 2, 3, 4, 5] as const;
@@ -327,31 +329,42 @@ export default function Profile() {
               })
             : Promise.resolve(null);
 
-          const ratingsCountPromise = Promise.all(
+          const ratingsSummaryPromise = Promise.all(
             allPublishedSnap.docs.map(async (publishedDoc) => {
               const scoresSnap = await getDocs(collection(db, "friendFeed", publishedDoc.id, "scores"));
               const validScores = scoresSnap.docs
                 .map((snap) => normalizeRating((snap.data() as any)?.score))
                 .filter((value): value is number => value !== null);
 
-              if (validScores.length > 0) return validScores.length;
+              if (validScores.length > 0) {
+                const total = validScores.reduce((sum, value) => sum + value, 0);
+                return { count: validScores.length, total };
+              }
 
               const legacyLikes = await getCountFromServer(collection(db, "friendFeed", publishedDoc.id, "likes"));
-              return legacyLikes.data().count ?? 0;
+              const likeCount = legacyLikes.data().count ?? 0;
+              return {
+                count: likeCount,
+                total: likeCount * 4,
+              };
             })
           );
 
           const [recipesCreatedCount, ratingsPerPost] = await Promise.all([
             recipesCreatedCountPromise,
-            ratingsCountPromise,
+            ratingsSummaryPromise,
           ]);
 
-          const ratingsReceived = ratingsPerPost.reduce((sum, n) => sum + n, 0);
+          const ratingsReceived = ratingsPerPost.reduce((sum, row) => sum + row.count, 0);
+          const accountRatingTotal = ratingsPerPost.reduce((sum, row) => sum + row.total, 0);
+          const accountRatingAverage = ratingsReceived > 0 ? accountRatingTotal / ratingsReceived : 0;
           setStats({
             recipesCreated: recipesCreatedCount ?? publishedCount,
             publishedPosts: publishedCount,
             friendsCount: 0,
             ratingsReceived,
+            accountRatingAverage,
+            accountRatingCount: ratingsReceived,
           });
         } else {
           setStats(null);
@@ -741,6 +754,24 @@ export default function Profile() {
                 <div>
                   <h1 className="font-serif text-4xl font-bold mb-2">{profile.fullName}</h1>
                   <p className="text-muted-foreground">@{profile.username}</p>
+                  {profile.showProfileStats ? (
+                    <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                      {loadingStats || !stats ? (
+                        <span>Account rating: ...</span>
+                      ) : stats.accountRatingCount > 0 ? (
+                        <>
+                          <span>Account rating:</span>
+                          <div className="flex items-center gap-0.5">
+                            {renderAverageStars(stats.accountRatingAverage)}
+                          </div>
+                          <span>{stats.accountRatingAverage.toFixed(1)}</span>
+                          <span>({stats.accountRatingCount})</span>
+                        </>
+                      ) : (
+                        <span>Account rating: no ratings yet</span>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -751,7 +782,7 @@ export default function Profile() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {!loading && profile ? (
           profile.showProfileStats ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
               <Card className="p-4 border border-border">
                 <p className="text-xs text-muted-foreground">Recipes Created</p>
                 <p className="text-2xl font-semibold mt-1">{loadingStats || !stats ? "..." : stats.recipesCreated}</p>
@@ -767,6 +798,20 @@ export default function Profile() {
               <Card className="p-4 border border-border">
                 <p className="text-xs text-muted-foreground">Friends</p>
                 <p className="text-2xl font-semibold mt-1">{loadingStats || !stats ? "..." : stats.friendsCount}</p>
+              </Card>
+              <Card className="p-4 border border-border">
+                <p className="text-xs text-muted-foreground">Account Rating</p>
+                {loadingStats || !stats ? (
+                  <p className="text-2xl font-semibold mt-1">...</p>
+                ) : stats.accountRatingCount > 0 ? (
+                  <>
+                    <div className="mt-1 flex items-center gap-1">{renderAverageStars(stats.accountRatingAverage)}</div>
+                    <p className="text-2xl font-semibold mt-1">{stats.accountRatingAverage.toFixed(1)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">from {stats.accountRatingCount} ratings</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-2">No ratings yet</p>
+                )}
               </Card>
             </div>
           ) : (

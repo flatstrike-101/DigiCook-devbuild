@@ -13,6 +13,7 @@ import {
 
 import { updateUsername } from "@/utils/updateUsername";
 import { useTheme } from "@/components/ThemeProvider";
+import UserAvatar from "@/components/UserAvatar";
 
 interface SettingsModalProps {
   show: boolean;
@@ -20,6 +21,28 @@ interface SettingsModalProps {
 }
 
 type Mode = "main" | "changeUsername" | "changeEmail" | "changePassword";
+
+function ensureDirectImageUrl(url: string) {
+  return new Promise<void>((resolve, reject) => {
+    const img = new Image();
+    const timeoutId = setTimeout(() => {
+      img.src = "";
+      reject(new Error("That link is not a direct image URL."));
+    }, 10000);
+
+    img.onload = () => {
+      clearTimeout(timeoutId);
+      resolve();
+    };
+
+    img.onerror = () => {
+      clearTimeout(timeoutId);
+      reject(new Error("That link is not a direct image URL."));
+    };
+
+    img.src = url;
+  });
+}
 
 export default function SettingsModal({ show, onClose }: SettingsModalProps) {
   const { theme, setTheme } = useTheme();
@@ -45,6 +68,10 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
   const [passwordError, setPasswordError] = useState("");
   const [showProfileStats, setShowProfileStats] = useState(true);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState("");
+  const [profileImageInput, setProfileImageInput] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [savingProfileImage, setSavingProfileImage] = useState(false);
 
   useEffect(() => {
     if (!show) return;
@@ -60,10 +87,18 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
 
       if (snap.exists()) {
         const data = snap.data();
-        setUsername(data.username || "");
+        setUsername(data.displayUsername || data.username || "");
+        setFullName(data.fullName || data.name || `${data.firstName || ""} ${data.lastName || ""}`.trim());
         setShowProfileStats(data.showProfileStats !== false);
+        const imageUrl = data.profileImageUrl || data.photoURL || user.photoURL || "";
+        setProfileImageUrl(imageUrl);
+        setProfileImageInput(imageUrl);
       } else {
         setShowProfileStats(true);
+        setFullName("");
+        const imageUrl = user.photoURL || "";
+        setProfileImageUrl(imageUrl);
+        setProfileImageInput(imageUrl);
       }
     };
 
@@ -211,6 +246,38 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
     }
   };
 
+  const handleSaveProfileImageUrl = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      alert("Not signed in.");
+      return;
+    }
+    const imageUrl = profileImageInput.trim();
+    if (imageUrl && !/^https?:\/\/.+/i.test(imageUrl)) {
+      alert("Please enter a valid image URL that starts with http:// or https://");
+      return;
+    }
+
+    try {
+      setSavingProfileImage(true);
+      if (imageUrl) {
+        await ensureDirectImageUrl(imageUrl);
+      }
+      await updateDoc(doc(db, "users", user.uid), {
+        profileImageUrl: imageUrl || null,
+      });
+
+      setProfileImageUrl(imageUrl);
+      alert("Profile picture updated.");
+    } catch (err: any) {
+      console.error(err);
+      const message = err?.message || "Could not update profile picture. Please try again.";
+      alert(message);
+    } finally {
+      setSavingProfileImage(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[20000] flex items-center justify-center">
       <div
@@ -237,6 +304,52 @@ export default function SettingsModal({ show, onClose }: SettingsModalProps) {
         {/* MAIN */}
         {mode === "main" && (
           <div className="space-y-8">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <UserAvatar
+                  photoURL={profileImageUrl}
+                  username={username}
+                  fullName={fullName}
+                  className="h-14 w-14"
+                  fallbackClassName="text-lg font-semibold"
+                />
+                <div>
+                  <p className="text-lg font-semibold">Profile Picture</p>
+                  <p className="text-sm text-muted-foreground">
+                    Paste an image URL or leave blank for your name initial fallback.
+                  </p>
+                </div>
+              </div>
+
+              <div className="w-full max-w-sm space-y-2">
+                <input
+                  type="url"
+                  className="w-full p-2 rounded-md bg-background border text-sm"
+                  placeholder="https://example.com/avatar.png"
+                  value={profileImageInput}
+                  onChange={(e) => setProfileImageInput(e.target.value)}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setProfileImageInput("")}
+                    disabled={savingProfileImage}
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-blue-950 text-white hover:bg-blue-900 !border-blue-950"
+                    onClick={handleSaveProfileImageUrl}
+                    disabled={savingProfileImage}
+                  >
+                    {savingProfileImage ? "Saving..." : "Save"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-lg font-semibold">Username:</p>

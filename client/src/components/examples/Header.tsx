@@ -6,7 +6,7 @@ export default function HeaderExample() {
   return (
     <ThemeProvider>
       <Router>
-        <Header />
+        <Header onOpenSettings={() => {}} />
       </Router>
     </ThemeProvider>
   );

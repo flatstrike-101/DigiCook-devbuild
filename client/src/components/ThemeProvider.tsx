@@ -4,22 +4,21 @@ type Theme = "light" | "dark" | "navy" | "red";
 
 type ThemeContextType = {
   theme: Theme;
-  toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
+  toggleTheme: () => void;
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem("digiCook_theme");
-    return stored === "light" ||
-      stored === "dark" ||
-      stored === "navy" ||
-      stored === "red"
-      ? stored
-      : "dark";
-  });
+  const [theme, setTheme] = useState<Theme>("dark");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("digiCook_theme") as Theme | null;
+    if (stored && ["light", "dark", "navy", "red"].includes(stored)) {
+      setTheme(stored);
+    }
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -37,7 +36,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
